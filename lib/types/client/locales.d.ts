@@ -1,0 +1,93 @@
+/**
+ * Localization strings for attention-plugins.
+ * Supports English (en) and Simplified Chinese (zh-CN).
+ */
+export declare const locales: {
+    readonly en: {
+        readonly 'settings.title': "Attention";
+        readonly 'settings.sound.label': "Sound Notifications";
+        readonly 'settings.sound.description': "Play a sound when events occur";
+        readonly 'settings.sound.volume': "Volume";
+        readonly 'settings.browser.label': "Browser Notifications";
+        readonly 'settings.browser.description': "Show system notifications when you are away";
+        readonly 'settings.browser.permission.granted': "Granted";
+        readonly 'settings.browser.permission.denied': "Denied (check browser settings)";
+        readonly 'settings.browser.permission.default': "Not requested";
+        readonly 'settings.browser.enable': "Enable & Request Permission";
+        readonly 'settings.browser.test': "Test Notification";
+        readonly 'settings.notifyCurrent.label': "Alert for Current Session";
+        readonly 'settings.notifyCurrent.description': "Also notify when the session you are viewing completes";
+        readonly 'settings.mainline.label': "Main-line Task Marker";
+        readonly 'settings.mainline.description': "Mark a session as main-line to get immediate alerts on completion. All other running sessions are side-line and alert only when ALL finish.";
+        readonly 'settings.mainline.hint': "💡 Look for the \"☆ Set as Main\" button in the conversation header to mark a session.";
+        readonly 'settings.eventTypes.label': "Event Types";
+        readonly 'settings.eventTypes.description': "Configure notifications for each event type";
+        readonly 'event.completed': "Completed";
+        readonly 'event.failed': "Failed";
+        readonly 'event.question': "Question";
+        readonly 'event.permission': "Permission";
+        readonly 'sound.chime': "Chime";
+        readonly 'sound.success': "Success";
+        readonly 'sound.subtle': "Subtle";
+        readonly 'sound.none': "None";
+        readonly 'notification.completed.title': "Session Completed";
+        readonly 'notification.completed.body': "{title}";
+        readonly 'notification.failed.title': "Session Failed";
+        readonly 'notification.failed.body': "{title}: {detail}";
+        readonly 'notification.question.title': "Question Asked";
+        readonly 'notification.question.body': "{title}: {detail}";
+        readonly 'notification.permission.title': "Permission Requested";
+        readonly 'notification.permission.body': "{title}: {detail}";
+        readonly 'notification.test.title': "Test Notification";
+        readonly 'notification.test.body': "Attention plugins is working!";
+        readonly 'mainline.set': "Set as main-line task";
+        readonly 'mainline.unset': "Unmark main-line";
+        readonly 'mainline.label.active': "Main";
+        readonly 'mainline.label.inactive': "Set as Main";
+    };
+    readonly 'zh-CN': {
+        readonly 'settings.title': "注意力";
+        readonly 'settings.sound.label': "声音通知";
+        readonly 'settings.sound.description': "事件发生时播放提示音";
+        readonly 'settings.sound.volume': "音量";
+        readonly 'settings.browser.label': "浏览器通知";
+        readonly 'settings.browser.description': "离开标签页时显示系统通知";
+        readonly 'settings.browser.permission.granted': "已授权";
+        readonly 'settings.browser.permission.denied': "已拒绝（请检查浏览器设置）";
+        readonly 'settings.browser.permission.default': "未请求";
+        readonly 'settings.browser.enable': "启用并请求权限";
+        readonly 'settings.browser.test': "测试通知";
+        readonly 'settings.notifyCurrent.label': "为当前会话也通知";
+        readonly 'settings.notifyCurrent.description': "正在查看的会话完成时也发出通知";
+        readonly 'settings.mainline.label': "主线任务标记";
+        readonly 'settings.mainline.description': "标记某个会话为主线后，它完成时立即通知。其他正在运行的会话都是支线，只有全部完成时才通知。";
+        readonly 'settings.mainline.hint': "💡 在会话标题栏找\"☆ 设为主线\"按钮来标记会话。";
+        readonly 'settings.eventTypes.label': "事件类型";
+        readonly 'settings.eventTypes.description': "为每种事件类型配置通知";
+        readonly 'event.completed': "完成";
+        readonly 'event.failed': "失败";
+        readonly 'event.question': "提问";
+        readonly 'event.permission': "权限";
+        readonly 'sound.chime': "清脆";
+        readonly 'sound.success': "成功";
+        readonly 'sound.subtle': "柔和";
+        readonly 'sound.none': "静音";
+        readonly 'notification.completed.title': "会话已完成";
+        readonly 'notification.completed.body': "{title}";
+        readonly 'notification.failed.title': "会话失败";
+        readonly 'notification.failed.body': "{title}：{detail}";
+        readonly 'notification.question.title': "收到提问";
+        readonly 'notification.question.body': "{title}：{detail}";
+        readonly 'notification.permission.title': "需要权限";
+        readonly 'notification.permission.body': "{title}：{detail}";
+        readonly 'notification.test.title': "测试通知";
+        readonly 'notification.test.body': "Attention plugins 运行正常！";
+        readonly 'mainline.set': "设为主线任务";
+        readonly 'mainline.unset': "取消主线标记";
+        readonly 'mainline.label.active': "主线";
+        readonly 'mainline.label.inactive': "设为主线";
+    };
+};
+export type LocaleKey = keyof typeof locales['en'];
+export type LocaleCode = keyof typeof locales;
+//# sourceMappingURL=locales.d.ts.map

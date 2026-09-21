@@ -1,0 +1,82 @@
+{
+  "name": "attention-plugins",
+  "version": "0.1.0",
+  "description": "Lightweight DSH plugin for session completion notifications with sound and browser alerts",
+  "author": "User",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-session"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json --watch",
+    "clean": "rm -rf lib",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-api-session-controller": "^0.1.6-alpha.1",
+    "@deepseek-ai/dsh-client-connection": "^0.1.6-alpha.1",
+    "@deepseek-ai/dsh-client-locale": "^0.1.6-alpha.1",
+    "@deepseek-ai/dsh-client-store": "^0.1.6-alpha.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.6-alpha.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.6-alpha.1",
+    "@deepseek-ai/dsh-client-ui-session": "^0.1.6-alpha.1",
+    "@deepseek-ai/dsh-client-ui-settings": "^0.1.6-alpha.1",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.6-alpha.1",
+    "@deepseek-ai/dsh-settings": "^0.1.6-alpha.1",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "~18.3.1",
+    "react": "^18.2.0",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "react": "^18.2.0"
+  },
+  "license": "MIT",
+  "files": [
+    "lib",
+    "src",
+    "docs",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "notification",
+    "attention",
+    "productivity"
+  ]
+}

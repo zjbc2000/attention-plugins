@@ -1,0 +1,4 @@
+# Bundle patch layer for attention-plugins
+# Registers the plugin into the DSH Web profile
+
+- name: attention-plugins
