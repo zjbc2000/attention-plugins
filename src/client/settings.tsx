@@ -7,7 +7,10 @@ import type { AttentionSettings, SoundId, NotificationType } from '../settings.j
 import { defaultSettings } from '../settings.js'
 import { playSound } from './sounds.js'
 import { requestPermission, canNotify, showNotification } from './notification.js'
-import { locales, type LocaleCode } from './locales.js'
+import { locales, resolveLocaleCode } from './locales.js'
+import { attentionCss } from './effects.js'
+import { AttentionFigure } from './attention-figure.js'
+import { SparkStar } from './spark-star.js'
 
 const STORAGE_KEY = 'attention-plugins:config'
 
@@ -54,7 +57,7 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
   const [settings, setSettings] = useState<AttentionSettings>(loadSettings)
   const [permissionState, setPermissionState] = useState<NotificationPermission>('default')
   
-  const localeCode: LocaleCode = locale.startsWith('zh') ? 'zh-CN' : 'en'
+  const localeCode = resolveLocaleCode(locale)
   const t = useCallback((key: keyof typeof locales['en']) => locales[localeCode][key], [localeCode])
   
   // Check notification permission on mount
@@ -128,9 +131,18 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
   
   return (
     <div className="attention-settings-section" style={{ padding: '16px 0' }}>
-      <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px' }}>
-        {t('settings.title')}
-      </h2>
+      <style>{attentionCss}</style>
+
+      {/* Hero — serif title over a printed-plate self-attention figure */}
+      <div className="attention-hero">
+        <h2 className="attention-title">
+          <span className="attention-kw">{t('settings.titleKw')}</span>
+          {t('settings.titleRest')}
+        </h2>
+        <span className="attention-citation">Vaswani et al. · 2017</span>
+        <AttentionFigure />
+        <span className="attention-rule" aria-hidden="true" />
+      </div>
       
       {/* Sound Notifications */}
       <div style={{ marginBottom: '24px' }}>
@@ -139,11 +151,11 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
             type="checkbox"
             checked={settings.soundEnabled}
             onChange={e => updateSetting('soundEnabled', e.target.checked)}
-            style={{ marginRight: '8px' }}
+            style={{ marginRight: '8px', accentColor: 'var(--dsw-alias-state-business-primary)' }}
           />
           <span style={{ fontWeight: 500 }}>{t('settings.sound.label')}</span>
         </label>
-        <p style={{ fontSize: '13px', color: '#666', marginLeft: '24px', marginBottom: '12px' }}>
+        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', marginLeft: '24px', marginBottom: '12px' }}>
           {t('settings.sound.description')}
         </p>
         
@@ -160,7 +172,7 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
                 max="100"
                 value={settings.volume}
                 onChange={e => updateSetting('volume', parseInt(e.target.value))}
-                style={{ width: '200px' }}
+                style={{ width: '200px', accentColor: 'var(--dsw-alias-state-business-primary)' }}
               />
             </div>
           </div>
@@ -172,19 +184,20 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
         <h3 style={{ fontSize: '15px', fontWeight: 500, marginBottom: '8px' }}>
           {t('settings.eventTypes.label')}
         </h3>
-        <p style={{ fontSize: '13px', color: '#666', marginBottom: '12px' }}>
+        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', marginBottom: '12px' }}>
           {t('settings.eventTypes.description')}
         </p>
         
         <div style={{ marginLeft: '0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {eventTypes.map(eventType => {
+          {eventTypes.map((eventType, index) => {
             const typeSettings = settings.types[eventType]
             return (
-              <div key={eventType} style={{ 
+              <div key={eventType} className="attention-card" style={{ 
                 padding: '12px', 
-                border: '1px solid #e0e0e0', 
+                border: '1px solid var(--dsw-alias-border-l3)', 
                 borderRadius: '6px',
-                background: '#fafafa',
+                background: 'var(--dsw-alias-bg-layer-2)',
+                animationDelay: `${index * 70}ms`,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <label style={{ display: 'flex', alignItems: 'center' }}>
@@ -192,7 +205,7 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
                       type="checkbox"
                       checked={typeSettings.enabled}
                       onChange={e => updateEventType(eventType, 'enabled', e.target.checked)}
-                      style={{ marginRight: '8px' }}
+                      style={{ marginRight: '8px', accentColor: 'var(--dsw-alias-state-business-primary)' }}
                     />
                     <span style={{ fontWeight: 500 }}>{t(`event.${eventType}` as any)}</span>
                   </label>
@@ -203,7 +216,13 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
                     <select
                       value={typeSettings.sound}
                       onChange={e => updateEventType(eventType, 'sound', e.target.value as SoundId)}
-                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd' }}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--dsw-alias-border-l3)',
+                        background: 'var(--dsw-alias-bg-layer-1)',
+                        color: 'var(--dsw-alias-label-primary)',
+                      }}
                     >
                       <option value="chime">{t('sound.chime')}</option>
                       <option value="success">{t('sound.success')}</option>
@@ -211,13 +230,15 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
                       <option value="none">{t('sound.none')}</option>
                     </select>
                     <button
+                      className="attention-test-btn"
                       onClick={() => handleTestSound(typeSettings.sound)}
                       disabled={!settings.soundEnabled || typeSettings.sound === 'none'}
                       style={{
                         padding: '4px 12px',
                         borderRadius: '4px',
-                        border: '1px solid #ddd',
-                        background: '#f5f5f5',
+                        border: '1px solid var(--dsw-alias-border-l3)',
+                        background: 'var(--dsw-alias-interactive-bg-hover)',
+                        color: 'var(--dsw-alias-label-primary)',
                         cursor: settings.soundEnabled && typeSettings.sound !== 'none' ? 'pointer' : 'not-allowed',
                       }}
                     >
@@ -232,15 +253,15 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
       </div>
       
       {/* Main-line Session Marker */}
-      <div style={{ marginBottom: '24px', padding: '12px', background: '#f9f9f9', borderRadius: '6px' }}>
+      <div style={{ marginBottom: '24px', padding: '12px', background: 'var(--dsw-alias-bg-layer-2)', borderRadius: '6px' }}>
         <h3 style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '16px' }}>⭐</span>
+          <SparkStar active size={15} />
           {t('settings.mainline.label')}
         </h3>
-        <p style={{ fontSize: '13px', color: '#666', lineHeight: '1.5' }}>
+        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', lineHeight: '1.5' }}>
           {t('settings.mainline.description')}
         </p>
-        <p style={{ fontSize: '13px', color: '#999', marginTop: '8px', fontStyle: 'italic' }}>
+        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-tertiary)', marginTop: '8px', fontStyle: 'italic' }}>
           {t('settings.mainline.hint')}
         </p>
       </div>
@@ -259,15 +280,15 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
               }
             }}
             disabled={permissionState === 'denied'}
-            style={{ marginRight: '8px' }}
+            style={{ marginRight: '8px', accentColor: 'var(--dsw-alias-state-business-primary)' }}
           />
           <span style={{ fontWeight: 500 }}>{t('settings.browser.label')}</span>
         </label>
-        <p style={{ fontSize: '13px', color: '#666', marginLeft: '24px', marginBottom: '8px' }}>
+        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', marginLeft: '24px', marginBottom: '8px' }}>
           {t('settings.browser.description')}
         </p>
         
-        <div style={{ marginLeft: '24px', fontSize: '13px', color: '#666' }}>
+        <div style={{ marginLeft: '24px', fontSize: '13px', color: 'var(--dsw-alias-label-secondary)' }}>
           <span>
             {permissionState === 'granted' && t('settings.browser.permission.granted')}
             {permissionState === 'denied' && t('settings.browser.permission.denied')}
@@ -281,9 +302,9 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
                 marginLeft: '12px',
                 padding: '4px 12px',
                 borderRadius: '4px',
-                border: '1px solid #0066cc',
-                background: '#0066cc',
-                color: 'white',
+                border: '1px solid var(--dsw-alias-state-business-primary)',
+                background: 'var(--dsw-alias-state-business-primary)',
+                color: 'var(--dsw-alias-label-primary-foreground, #fff)',
                 cursor: 'pointer',
               }}
             >
@@ -298,8 +319,8 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
                 marginLeft: '12px',
                 padding: '4px 12px',
                 borderRadius: '4px',
-                border: '1px solid #ddd',
-                background: '#f5f5f5',
+                border: '1px solid var(--dsw-alias-border-l3)',
+                background: 'var(--dsw-alias-interactive-bg-hover)',
                 cursor: 'pointer',
               }}
             >
@@ -316,12 +337,28 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
             type="checkbox"
             checked={settings.notifyCurrent}
             onChange={e => updateSetting('notifyCurrent', e.target.checked)}
-            style={{ marginRight: '8px' }}
+            style={{ marginRight: '8px', accentColor: 'var(--dsw-alias-state-business-primary)' }}
           />
           <span style={{ fontWeight: 500 }}>{t('settings.notifyCurrent.label')}</span>
         </label>
-        <p style={{ fontSize: '13px', color: '#666', marginLeft: '24px' }}>
+        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', marginLeft: '24px' }}>
           {t('settings.notifyCurrent.description')}
+        </p>
+      </div>
+
+      {/* Sidebar Mainline Badge */}
+      <div>
+        <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+          <input
+            type="checkbox"
+            checked={settings.sidebarBadge}
+            onChange={e => updateSetting('sidebarBadge', e.target.checked)}
+            style={{ marginRight: '8px', accentColor: 'var(--dsw-alias-state-business-primary)' }}
+          />
+          <span style={{ fontWeight: 500 }}>{t('settings.badge.label')}</span>
+        </label>
+        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', marginLeft: '24px' }}>
+          {t('settings.badge.description')}
         </p>
       </div>
     </div>

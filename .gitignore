@@ -3,3 +3,10 @@ node_modules/
 *.log
 .DS_Store
 .pnpm-store/
+
+# ── build output（lib 由 pnpm run build 生成；npm files 字段发布时仍会包含）──
+lib/
+
+# ── 开发过程材料：产品原型 / 参考图与截图 ──
+design-demos/
+docs/mainline-style-prototypes.html

@@ -30,6 +30,7 @@ export interface AttentionSettings {
   notifyCurrent: boolean
   /** Main-line session ID (manually set; empty = none). */
   mainlineSessionId: string
+  sidebarBadge: boolean
   /** Per-event-type settings. */
   types: Record<NotificationType, EventTypeSettings>
 }
@@ -41,6 +42,7 @@ export const defaultSettings: AttentionSettings = {
   browserEnabled: false,
   notifyCurrent: false,
   mainlineSessionId: '',
+  sidebarBadge: true,
   types: {
     completed: { enabled: true, sound: 'chime' },
     failed: { enabled: true, sound: 'subtle' },

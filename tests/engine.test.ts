@@ -246,6 +246,66 @@ describe('NotificationEngine', () => {
       expect(emittedEvents[0].kind).toBe('failed')
       expect(emittedEvents[0].detail).toContain('Mock error')
     })
+
+    // The production wiring cannot read error state from the session list row
+    // (SessionSummary has no error fields), so failure classification rides on
+    // the api-session/error remote event. These cover that path directly.
+    it('should emit "failed" when api-session/error arrives during the run', async () => {
+      mainlineSessionId = 'A'
+      // Detail stays clean: only the error event marks the failure.
+      ports.detailOf = () => mockDetail(false)
+
+      engine.seed(mockSessionList([{ id: 'A', running: true }]))
+      engine.observeError('A', 'Provider returned 500')
+
+      engine.observe(mockSessionList([{ id: 'A', running: false }]))
+
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].kind).toBe('failed')
+      expect(emittedEvents[0].detail).toBe('Provider returned 500')
+    })
+
+    it('should still emit "completed" when an error predates the run', async () => {
+      mainlineSessionId = 'A'
+      ports.detailOf = () => mockDetail(false)
+
+      // Error from an earlier, already-finished run.
+      engine.observeError('A', 'Old failure')
+
+      engine.seed(mockSessionList([{ id: 'A', running: true }]))
+      engine.observe(mockSessionList([{ id: 'A', running: false }]))
+
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].kind).toBe('completed')
+    })
+
+    it('should detect a failure repeated with an identical message', async () => {
+      mainlineSessionId = 'A'
+      ports.detailOf = () => mockDetail(false)
+
+      // First run fails.
+      engine.seed(mockSessionList([{ id: 'A', running: true }]))
+      engine.observeError('A', 'Same message')
+      engine.observe(mockSessionList([{ id: 'A', running: false }]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].kind).toBe('failed')
+
+      // Second run fails with the byte-identical message: comparing messages
+      // alone would swallow this, counting occurrences must not.
+      engine.observe(mockSessionList([{ id: 'A', running: true }]))
+      engine.observeError('A', 'Same message')
+      engine.observe(mockSessionList([{ id: 'A', running: false }]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents).toHaveLength(2)
+      expect(emittedEvents[1].kind).toBe('failed')
+    })
   })
 
   describe('Edge cases', () => {
@@ -354,6 +414,55 @@ describe('NotificationEngine', () => {
 
       expect(emittedEvents).toHaveLength(2)
       expect(emittedEvents[1].detail).toBe('Second')
+    })
+
+    it('should record the first snapshot silently, then notify on changes', () => {
+      // Already-pending request at page load: recorded, not announced.
+      engine.observePending(new Map([
+        ['A', { key: 'q1', kind: 'question' as const, detail: 'Already open' }],
+      ]), { silent: true })
+
+      expect(emittedEvents).toHaveLength(0)
+
+      // A genuinely new request after load still notifies.
+      engine.observePending(new Map([
+        ['A', { key: 'q2', kind: 'question' as const, detail: 'New one' }],
+      ]))
+
+      expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].detail).toBe('New one')
+    })
+
+    it('should clear the de-dup key once the interaction is answered', () => {
+      engine.observePending(new Map([
+        ['A', { key: 'q1', kind: 'question' as const, detail: 'What?' }],
+      ]))
+      expect(emittedEvents).toHaveLength(1)
+
+      // Answered: the session drops out of the pending map.
+      engine.observePending(new Map())
+
+      // The same key reappearing later is a new request, not a duplicate.
+      engine.observePending(new Map([
+        ['A', { key: 'q1', kind: 'question' as const, detail: 'What?' }],
+      ]))
+
+      expect(emittedEvents).toHaveLength(2)
+    })
+
+    it('should stop tracking pending state for removed sessions', () => {
+      engine.observePending(new Map([
+        ['A', { key: 'q1', kind: 'question' as const, detail: 'What?' }],
+      ]))
+      expect(emittedEvents).toHaveLength(1)
+
+      engine.observeRemoved('A')
+
+      engine.observePending(new Map([
+        ['A', { key: 'q1', kind: 'question' as const, detail: 'What?' }],
+      ]))
+
+      expect(emittedEvents).toHaveLength(2)
     })
   })
 })

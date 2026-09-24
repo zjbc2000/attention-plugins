@@ -1,6 +1,6 @@
 {
   "name": "attention-plugins",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Lightweight DSH plugin for session completion notifications with sound and browser alerts",
   "author": "User",
   "type": "module",
@@ -27,6 +27,7 @@
         "@deepseek-ai/dsh-client-ui-renderer",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-api-session-controller",
         "@deepseek-ai/dsh-client-ui-session"
       ],
@@ -34,7 +35,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node bundle-client.mjs",
+    "bundle:client": "node bundle-client.mjs",
     "watch": "tsc -p tsconfig.json --watch",
     "clean": "rm -rf lib",
     "test": "vitest run",
@@ -78,5 +80,13 @@
     "notification",
     "attention",
     "productivity"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zjbc2000/attention-plugins.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zjbc2000/attention-plugins/issues"
+  },
+  "homepage": "https://github.com/zjbc2000/attention-plugins#readme"
 }
