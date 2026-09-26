@@ -6,7 +6,7 @@
 </p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-47%20passed-brightgreen)](./tests/)
+[![Tests](https://img.shields.io/badge/tests-62%20passed-brightgreen)](./tests/)
 [![DSH Version](https://img.shields.io/badge/DSH-%E2%89%A50.1.6--alpha.1-blue)](https://github.com/deepseek-ai/dsh-harness)
 
 [English](#english) | [中文](#中文)
@@ -24,7 +24,7 @@
 - 🔔 **浏览器通知**：离开标签页时弹出系统通知
 - 🎛️ **灵活配置**：独立的设置面板，音量可调，事件独立开关
 - ✨ **动效面板**：设置面板标题「Attention is all you need」衬线排版 + 图纸式自注意力连线图（浅色图版深色墨线、query 轮换、印刷品级对比、零辉光），主线标记直接内嵌原神原石官方贴图（尊重 `prefers-reduced-motion`）
-- 🧪 **测试覆盖**：47 个单元测试，100% 通过
+- 🧪 **测试覆盖**：62 个单元测试，100% 通过
 
 ### 快速开始
 
@@ -106,7 +106,7 @@ dsh web
 - **边沿检测**：跟踪 `running` 状态（true → false = 完成）
 - **失败检测**：监听 `api-session/error`（agent loop 的真实失败；用户主动中止不会触发），按「本轮运行期间是否新增错误」归属
 - **提问 / 权限检测**：这两类**没有**对应的 `api-session/*` 远程事件，唯一来源是 UI 状态源 `ctx.uiSession.sessionStatus` 里的 `pendingInteraction`（`kind: 'question' | 'plan-review' | 'approval'`）；通过 `ctx.inject(['uiSession'])` 订阅，首帧静默只记录基线
-- **音效合成**：Web Audio API（OscillatorNode + GainNode）
+- **音效合成**：Web Audio API（OscillatorNode + GainNode）；响度按系统提示音量级校准（70% 音量下峰值约 −7~−9 dBFS，含起振包络防爆音；低频 `subtle` 按等响曲线补偿）；AudioContext 冷启动预热 + `devicechange` 后重建，避免蓝牙切换后首次提示音被吞或路由失效
 - **通知**：Notification API（需用户授权）
 - **存储**：localStorage（`attention-plugins:config`）
 - **Slot 注入**：`conversation.session.header.utilities`（⭐ 按钮）+ `conversation.input.left`（输入框工具行 ⭐ 小图标）
@@ -135,9 +135,10 @@ pnpm run clean
 ✓ tests/engine.test.ts (21 tests)
 ✓ tests/mainline-sideline-advanced.test.ts (16 tests)
 ✓ tests/pending.test.ts (10 tests)
+✓ tests/sound-params.test.ts (15 tests)
 
-Test Files  3 passed (3)
-Tests  47 passed (47)
+Test Files  4 passed (4)
+Tests  62 passed (62)
 ```
 
 ### 路线图
@@ -180,7 +181,7 @@ MIT License - 详见 [LICENSE](LICENSE)
 - 🔔 **Browser Notifications**: System notifications when away
 - 🎛️ **Flexible Config**: Dedicated settings panel, volume control, per-event switches
 - ✨ **Animated Panel**: serif-typeset "Attention is all you need" title over a printed-plate self-attention figure (dark ink lines on a near-white plate, rotating query, zero glow); the mainline marker embeds the official Genshin Primogem texture (honours `prefers-reduced-motion`)
-- 🧪 **Test Coverage**: 47 unit tests, 100% passed
+- 🧪 **Test Coverage**: 62 unit tests, 100% passed
 
 ### Quick Start
 
@@ -261,7 +262,7 @@ Session asks a question
 - **Edge Detection**: Tracks `running` state (true → false = completed)
 - **Failure Detection**: Listens to `api-session/error` (a genuine agent-loop failure; a user-initiated abort does not raise it), attributed to the run that was active
 - **Question / Permission Detection**: neither has an `api-session/*` remote event — the only source is `pendingInteraction` on the UI status source `ctx.uiSession.sessionStatus` (`kind: 'question' | 'plan-review' | 'approval'`), subscribed via `ctx.inject(['uiSession'])`; the first frame only records a baseline
-- **Sound Synthesis**: Web Audio API (OscillatorNode + GainNode)
+- **Sound Synthesis**: Web Audio API (OscillatorNode + GainNode); loudness calibrated to system-alert ballpark (≈ −7~−9 dBFS peaks at 70% volume, with attack ramps against clicks; the low-frequency `subtle` is equal-loudness compensated); AudioContext cold-start priming + `devicechange` recreation, so the first alert after a Bluetooth switch is neither swallowed nor left on a dead route
 - **Notifications**: Notification API (requires user permission)
 - **Storage**: localStorage (`attention-plugins:config`)
 - **Slot Injection**: `conversation.session.header.utilities` (⭐ button)
@@ -290,9 +291,10 @@ pnpm run clean
 ✓ tests/engine.test.ts (21 tests)
 ✓ tests/mainline-sideline-advanced.test.ts (16 tests)
 ✓ tests/pending.test.ts (10 tests)
+✓ tests/sound-params.test.ts (15 tests)
 
-Test Files  3 passed (3)
-Tests  47 passed (47)
+Test Files  4 passed (4)
+Tests  62 passed (62)
 ```
 
 ### Roadmap

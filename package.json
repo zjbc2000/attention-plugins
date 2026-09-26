@@ -1,6 +1,6 @@
 {
   "name": "attention-plugins",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Lightweight DSH plugin for session completion notifications with sound and browser alerts",
   "author": "User",
   "type": "module",
