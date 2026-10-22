@@ -4,8 +4,9 @@ import { fileURLToPath } from 'url';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 async function run() {
-  const vitePath = resolve(__dirname, 'node_modules/.pnpm/vite@8.3.0_@types+node@24.13.6/node_modules/vite/dist/node/index.js');
-  const { build } = await import(vitePath);
+  // Resolve vite through node's own resolver: pnpm's virtual-store path carries
+  // peer suffixes and changes whenever the peer graph changes.
+  const { build } = await import('vite');
 
   await build({
     configFile: false,
