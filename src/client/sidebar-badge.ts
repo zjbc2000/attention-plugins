@@ -6,7 +6,8 @@
  * self-healing MutationObserver (the same technique @linxin666/dsh-web-all
  * uses for its sidebar entry). React may displace the node on re-render; the
  * next scan re-adds it. Toggle in Settings → Attention (sidebarBadge).
- * Clicking the badge cancels the mainline marking.
+ * Clicking the badge cancels that session's mainline marking; several sessions
+ * may carry the badge at once.
  */
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import { mainlineStore } from './mainline-store.js'
@@ -27,7 +28,7 @@ const STAR_SVG =
   `<img src="${PRIMOGEM_URI}" width="13" height="13" alt="" aria-hidden="true" draggable="false" ` +
   'style="display:block;width:13px;height:13px;object-fit:contain;">'
 
-function starNode(): HTMLSpanElement {
+function starNode(sessionId: SessionId): HTMLSpanElement {
   const span = document.createElement('span')
   span.setAttribute(BADGE_ATTR, '1')
   span.setAttribute('aria-hidden', 'true')
@@ -36,7 +37,7 @@ function starNode(): HTMLSpanElement {
   span.innerHTML = STAR_SVG
   span.addEventListener('click', (e) => {
     e.stopPropagation()
-    mainlineStore.set('')
+    mainlineStore.toggle(sessionId)
   })
   return span
 }
@@ -83,18 +84,19 @@ export function installSidebarBadge(resolveByTitle: (title: string) => SessionId
         removeAll()
         return
       }
-      const mainlineId = mainlineStore.getSnapshot()
-      if (!mainlineId) {
+      const mainlineIds = mainlineStore.getSnapshot()
+      if (mainlineIds.length === 0) {
         removeAll()
         return
       }
+      const marked = new Set<string>(mainlineIds)
       const column = document.querySelector('[data-pane="sidebar" i], [class*="sidebarCol" i]')
       if (column === null) return
       for (const row of findRows(column)) {
         const existing = row.querySelector(`[${BADGE_ATTR}]`)
         const id = rowIdOf(row, resolveByTitle)
-        if (id !== null && id === mainlineId) {
-          if (existing === null) row.insertBefore(starNode(), row.firstChild)
+        if (id !== null && marked.has(id)) {
+          if (existing === null) row.insertBefore(starNode(id), row.firstChild)
         } else if (existing !== null) {
           existing.remove()
         }

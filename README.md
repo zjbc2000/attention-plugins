@@ -1,324 +1,315 @@
-<h1 align="center">Attention Is All You Need</h1>
+<h1 align="center">attention-plugins</h1>
 
 <p align="center">
-  <strong>attention-plugins</strong> · 轻量级 DSH Web 插件：智能任务通知，主线/支线管理<br/>
-  <em>Lightweight DSH Web plugin — smart session notifications with main-line / side-line orchestration</em>
+  <strong>DSH 任务通知，按「主线 / 支线」分级。</strong><br/>
+  只让主线任务打断你，其余任务攒到全部结束再提醒。<br/>
+  <em>Task-priority notifications for DeepSeek Harness — only the tasks you care about interrupt you.</em>
 </p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-62%20passed-brightgreen)](./tests/)
-[![DSH Version](https://img.shields.io/badge/DSH-%E2%89%A50.1.6--alpha.1-blue)](https://github.com/deepseek-ai/dsh-harness)
+<p align="center">
+  <a href="https://github.com/zjbc2000/attention-plugins/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/zjbc2000/attention-plugins?style=social"></a>
+  <a href="https://github.com/zjbc2000/attention-plugins/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/zjbc2000/attention-plugins/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
+  <a href="./tests/"><img alt="Tests" src="https://img.shields.io/badge/tests-92%20passed-brightgreen"></a>
+  <img alt="DSH" src="https://img.shields.io/badge/DSH-tested%200.2.1--rc.2-blue">
+</p>
 
-[English](#english) | [中文](#中文)
+<p align="center"><a href="#中文">中文</a> · <a href="#english">English</a></p>
 
 ---
 
 ## 中文
 
-### 功能特性
+### 为什么做这个插件
 
-- ✅ **4 种事件通知**：完成、失败、提问、权限请求
-- ⭐ **主线/支线管理**：主线任务立即响，支线全部完成才响一次
-- 🎯 **⭐ 一键标记**：会话标题栏 + 输入框工具行两处标记主线，新会话发消息前即可标记
-- 🔊 **3 种内置音效**：Chime / Success / Subtle（Web Audio 实时合成）
-- 🔔 **浏览器通知**：离开标签页时弹出系统通知
-- 🎛️ **灵活配置**：独立的设置面板，音量可调，事件独立开关
-- ✨ **动效面板**：设置面板标题「Attention is all you need」衬线排版 + 图纸式自注意力连线图（浅色图版深色墨线、query 轮换、印刷品级对比、零辉光），主线标记直接内嵌原神原石官方贴图（尊重 `prefers-reduced-motion`）
-- 🧪 **测试覆盖**：62 个单元测试，100% 通过
+在 DSH 里同时开五个会话是常态。默认「每个任务完成都提醒」会让你在五个任务之间被五次打断——而你真正在等的往往只有一个。
 
-### 快速开始
+attention-plugins 让任务有主次：
 
-**要求**：DeepSeek Harness ≥ 0.1.6-alpha.1
+```
+会话 A  ★ 主线 ──完成──▶ 🔔 立即提醒
+会话 B    支线 ──完成──▶ 🔔（每个任务都提醒）/ 静默（汇总模式）
+会话 C    支线 ──完成──▶ 🔔（每个任务都提醒）/ 静默（汇总模式）
+                              └── batch：全部空闲 ──▶ 🔔 All tasks
+```
+
+- **主线**：你正在等的任务，完成或失败立即提醒。
+- **支线**：后台跑的任务，可以逐个提醒，也可以等全部结束只响一声。
+- **提问 / 权限请求**：无论主次立即提醒——它们会阻塞任务，漏掉的代价最大。
+
+### 功能
+
+- 🎯 **任务模式**：`主线模式`（默认）与 `均衡模式` 可切换。均衡模式下，只要你一个主线都没标，所有会话都按主线处理，每个任务完成/失败都立即提醒——适合「所有任务都重要」的场景。
+- ⭐ **多主线**：输入框工具行、会话行「…」菜单都能标记，可同时标记多个；侧栏会给已标记的会话加常驻星标。
+- 🔔 **支线通知方式**：`每个任务结束就提醒`（默认）或 `全部结束提醒一次`。
+- ✅ **4 类事件**：完成、失败、提问、权限请求，每类独立开关、独立音效。
+- 🔊 **3 种内置音效**：Chime / Success / Subtle，Web Audio 实时合成，不含音频文件；音量 0–100%。
+- 🖥 **浏览器通知**：切到其他标签页时弹系统通知；可额外开启「为当前会话也通知」。
+- 🌗 **中英双语设置面板**，遵循 `prefers-reduced-motion`。
+
+### 安装
+
+**要求**：DeepSeek Harness 0.1.7+（开发与验证环境为 0.2.1-rc.2）。更早版本的会话 store API 已不适用。
+
+**推荐：GitHub Release 预构建包**（一条命令，无需本地构建）：
 
 ```bash
-# 从本地安装
-cd /path/to/attention-plugins
-pnpm install && pnpm run build
-dsh plugin --profile web add file:$(pwd)
-
-# 重启 DSH Web
+dsh plugin --profile web add "https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.0/attention-plugins-0.2.0.tgz"
 dsh web
 ```
 
-安装后：
-1. 打开 **Settings → Attention** 配置插件
-2. 打开任意会话，标题栏右侧看到 **☆ 设为主线** 按钮；或在新会话（尚未发送第一条消息时）输入框工具行左侧找到 **☆** 小图标
-3. 点击 `☆` → 变成 `⭐ 主线`（橙色高亮）；新会话可在发出第一条消息之前就标记为主线
+预构建包已包含 `lib/`，安装后即可使用。npm 包正在准备中，发布后安装命令会简化为 `dsh plugin --profile web add attention-plugins`（见 [docs/RELEASE.md](docs/RELEASE.md)）。
 
-### 使用场景
+**从源码安装**：
 
-#### 场景 1：主线任务优先
-
-```
-启动 4 个任务：A（主线）、B、C、D
-- A 完成 → 🔔 立即通知
-- B、C、D 依次完成 → 静默
-- 所有支线完成 → 🔔 "All side-line tasks completed"
+```bash
+git clone https://github.com/zjbc2000/attention-plugins.git
+cd attention-plugins
+pnpm install
+pnpm run build
+dsh plugin --profile web add link:"$(pwd)"
+dsh web
 ```
 
-#### 场景 2：纯支线模式
+> 用 `link:` 安装时 DSH 直接引用源码目录：以后 `git pull && pnpm run build` 再刷新浏览器即可。用 `file:` 会复制一份到 `node_modules`，每次更新都要重新 `add`。
 
+**更新**：
+
+```bash
+# 预构建包：重新安装新版本的 tgz 即可
+dsh plugin --profile web add "<新版本 tgz 地址>"
+
+# 源码 / link: 安装：
+git pull && pnpm install && pnpm run build
+
+# 只改了客户端 bundle：刷新浏览器即可
+# 改了 src/index.ts 等服务端文件时，让 DSH 重新加载：
+printf '\n# reload %s\n' "$(date +%s)" >> ~/.dsh/profiles/web/cordis.patch.yml
 ```
-启动 3 个任务：A、B、C（都不标记主线）
-- A 完成 → 静默
-- B 完成 → 静默
-- C 完成 → 🔔 "All tasks completed"
-```
 
-#### 场景 3：阻塞交互
+### 30 秒上手
 
-```
-会话运行中需要回答问题
-→ 🔔 通知 + 🎵 Chime（question 事件）
-→ 用户返回查看并回答
-```
+1. 打开 **Settings → Attention**。
+2. 在任意会话的输入框左侧点 **☆**，或会话行「…」→「设为主线任务」；可以同时标多个。
+3. 默认的主线模式就够用：主线即时提醒，支线按「支线通知方式」处理。
+4. 如果没标主线、又希望每个任务都提醒：把任务模式切成「均衡模式」。
+5. 点事件卡片上的 ▶ 试听音效，顺便确认音量。
 
-### 配置选项
+### 通知规则
 
-**设置面板**（Settings → Attention）：
+| 情况 | 主线模式（默认） | 均衡模式 |
+|---|---|---|
+| 标了至少一个主线 | 标记的会话完成/失败立即提醒；未标记的按「支线通知方式」。 | 与主线模式完全相同（有标记时按标记走）。 |
+| 没有任何标记 | 所有会话都算支线，按「支线通知方式」。 | 所有会话都算主线，完成/失败逐个立即提醒，不产生汇总提醒。 |
+| 提问 / 权限请求 | 始终立即提醒（仍受事件开关和「当前会话」设置影响）。 | 同左。 |
 
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| 🔊 声音通知 | 总开关 | ✅ 开启 |
-| 🎵 音效选择 | Chime / Success / Subtle | Chime |
-| 🔉 音量 | 0-100% | 70% |
-| 🔔 浏览器通知 | 系统通知 | ❌ 关闭 |
-| 👁️ 为当前会话也通知 | 正在查看的会话也响 | ❌ 关闭 |
+**支线通知方式**：
 
-**事件独立配置**：
+- **每个任务结束就提醒**：N 个任务响 N 声，不做汇总。
+- **全部结束提醒一次**：支线完成时保持安静，等所有运行中的会话都空闲，汇总一声「All tasks」；如果最后结束的是主线，不会再补一次汇总（避免重复）。注意：batch 模式下支线的**失败**也会进入汇总，不会单独提醒。
 
-| 事件 | 默认音效 | 说明 |
-|------|----------|------|
-| ✅ Completed | Chime | 任务成功完成 |
-| ⚠️ Failed | Subtle | 任务执行失败 |
-| ❓ Question | Success | 需要用户回答 |
-| 🔒 Permission | Success | 需要用户授权 |
+### 设置项
 
-**⭐ 主线标记**：
-- 位置 1：会话标题栏右侧（带文字按钮）
-- 位置 2：输入框工具行左侧（紧凑小图标，新会话发消息前即可用）
-- 未标记：`☆`（灰色）
-- 已标记：`⭐`（橙色高亮）
+**Settings → Attention**：
 
-### 技术实现
+| 设置 | 说明 | 默认 |
+|---|---|---|
+| 🔊 声音通知 | 声音总开关 | 开 |
+| 🔉 音量 | 0–100% | 70% |
+| 🎵 事件类型 | 完成 / 失败 / 提问 / 权限，逐项开关与音效 | 全开 |
+| 🎯 任务模式 | 主线模式 / 均衡模式 | 主线模式 |
+| 🔔 支线通知方式 | 每个任务结束就提醒 / 全部结束提醒一次 | 每个任务结束就提醒 |
+| 🖥 浏览器通知 | 系统通知，需授权 | 关 |
+| 👁 为当前会话也通知 | 正在查看的会话也响 | 关 |
+| ⭐ 侧栏主线星标 | 在侧栏为已标记会话加星 | 开 |
 
-- **事件检测**：监听 `api-session/status` 远程事件
-- **边沿检测**：跟踪 `running` 状态（true → false = 完成）
-- **失败检测**：监听 `api-session/error`（agent loop 的真实失败；用户主动中止不会触发），按「本轮运行期间是否新增错误」归属
-- **提问 / 权限检测**：这两类**没有**对应的 `api-session/*` 远程事件，唯一来源是 UI 状态源 `ctx.uiSession.sessionStatus` 里的 `pendingInteraction`（`kind: 'question' | 'plan-review' | 'approval'`）；通过 `ctx.inject(['uiSession'])` 订阅，首帧静默只记录基线
-- **音效合成**：Web Audio API（OscillatorNode + GainNode）；响度按系统提示音量级校准（70% 音量下峰值约 −7~−9 dBFS，含起振包络防爆音；低频 `subtle` 按等响曲线补偿）；AudioContext 冷启动预热 + `devicechange` 后重建，避免蓝牙切换后首次提示音被吞或路由失效
-- **通知**：Notification API（需用户授权）
-- **存储**：localStorage（`attention-plugins:config`）
-- **Slot 注入**：`conversation.session.header.utilities`（⭐ 按钮）+ `conversation.input.left`（输入框工具行 ⭐ 小图标）
+事件默认音效：完成 `Chime`、失败 `Subtle`、提问 `Success`、权限 `Success`。
+
+### 标记主线的三个入口
+
+- **输入框工具行**：左侧的 ☆/⭐ 小图标，新会话发出第一条消息之前就能用。
+- **会话行「…」菜单**：「设为主线任务」/「取消主线标记」。
+- **侧栏星标**：已标记会话的标题前会显示 ⭐；点某颗星只取消该会话的标记。
+
+### 常见问题
+
+**为什么没有声音？**
+浏览器要求先有一次用户手势才允许播放音频。点任意事件卡片上的 ▶ 试听一次即可解锁；同时检查系统音量、静音状态和输出设备。切换蓝牙设备后插件会重建 `AudioContext`，避免第一声被吞。
+
+**浏览器通知不出现？**
+需要先在设置里授权；系统通知只在页面切到后台时弹出；macOS 还需在系统设置中允许浏览器发送通知。
+
+**主线和支线会重复响吗？**
+不会。`per-session` 模式不产生汇总提醒；`batch` 模式下主线即时提醒、支线汇总提醒，且主线刚完成时会抑制汇总。
+
+**标记和设置存在哪里？**
+浏览器 `localStorage` 的 `attention-plugins:config`，不跨浏览器或设备同步。
+
+**为什么设置面板在 Settings → Attention？**
+插件通过 `settings.section` 注册了自己的设置页签。
+
+### 实现要点
+
+- 会话运行状态来自 `api-session/status` 远程事件；提问/权限来自 `uiSession.sessionStatus.pendingInteraction`。
+- 完成判定为 `running: true → false`，经过 settle 窗口后，按本轮新增错误区分「完成」与「失败」。
+- 提问/权限没有对应的远程事件，首帧只记录基线，避免打开页面时补发一堆通知。
+- 通知门控顺序：事件开关 → 当前会话 / 页面可见性 → 浏览器通知权限。
+- 音效由 Web Audio 实时合成；设备变化后重建上下文。
+- 注入点：`conversation.input.left`、`sidebar.workspaces.session.menu.item`；侧栏星标通过 DOM 注入实现。
 
 ### 开发
 
 ```bash
-# 安装依赖
-pnpm install
-
-# 构建
-pnpm run build
-
-# 监听模式
-pnpm run watch
-
-# 运行测试
-pnpm test
-
-# 清理
-pnpm run clean
+pnpm install      # 安装依赖
+pnpm run build    # tsc + 打包客户端 bundle
+pnpm run watch    # 监听编译
+pnpm test         # 单元测试
+pnpm run clean    # 清理 lib/
 ```
 
-**测试覆盖**：
-```
-✓ tests/engine.test.ts (21 tests)
-✓ tests/mainline-sideline-advanced.test.ts (16 tests)
-✓ tests/pending.test.ts (10 tests)
-✓ tests/sound-params.test.ts (15 tests)
+测试：6 个文件 / 92 个用例。
 
-Test Files  4 passed (4)
-Tests  62 passed (62)
+```
+✓ tests/engine.test.ts                     (27)
+✓ tests/mainline-sideline-advanced.test.ts (21)
+✓ tests/sound-params.test.ts               (15)
+✓ tests/mainline-mode.test.ts              (13)
+✓ tests/pending.test.ts                    (10)
+✓ tests/settings-normalize.test.ts          (6)
 ```
 
 ### 路线图
 
-- [x] 4 种事件类型（completed / failed / question / permission）
-- [x] 主线/支线逻辑
-- [x] ⭐ 主线标记按钮（header slot）
-- [x] ⭐ 主线标记小图标（composer 工具行，发消息前可用）
-- [x] 声音提示（3 种内置音效）
-- [x] 浏览器系统通知
-- [x] 设置面板 UI
-- [x] 设置面板动效（衬线标题 + 图纸式连线图 / 官方原石贴图标记 / 卡片入场）
-- [x] 中英文本地化
-- [x] 47 个单元测试
-- [ ] npm 发布
-- [ ] 社区插件目录收录
-- [ ] 更多音效选择
-- [ ] 自定义音频上传
-
-**未来展望**：详见 [`docs/vision.md`](docs/vision.md)
+- [x] 4 类事件（完成 / 失败 / 提问 / 权限）
+- [x] 主线 / 支线分级与多主线标记
+- [x] 任务模式（主线模式 / 均衡模式）
+- [x] 支线通知方式（per-session / batch）
+- [x] 3 种内置音效、音量、浏览器通知
+- [x] 中英双语设置面板
+- [ ] npm 发布与社区目录收录
+- [ ] 更多音效 / 自定义音频
+- [ ] 每个会话单独静音
+- [ ] 通知历史
 
 ### 致谢
 
-基于 [@dingyi222666/dsh-session-notification](https://github.com/dingyi222666/dsh-session-notification) 的架构设计（MIT License），完全重写并扩展为支持主线/支线逻辑的版本。
+基于 [@dingyi222666/dsh-session-notification](https://github.com/dingyi222666/dsh-session-notification) 的架构（MIT License）重写，扩展了主线/支线分级与任务模式。
+
+如果这个插件帮你少被打断几次，点个 ⭐ 就是最好的支持。
 
 ### 许可证
 
-MIT License - 详见 [LICENSE](LICENSE)
+MIT License — 详见 [LICENSE](LICENSE)。
 
 ---
 
 ## English
 
+### Why
+
+Five parallel DSH sessions is normal. "Notify me when anything finishes" interrupts you five times, while you are usually waiting for exactly one of them.
+
+attention-plugins gives tasks a priority:
+
+- **Main-line** tasks alert immediately when they complete or fail.
+- **Side-line** tasks can alert one by one, or stay quiet until every running task finishes and then ring once.
+- **Questions / permission requests** always alert — they block the task, and missing them is expensive.
+
 ### Features
 
-- ✅ **4 Event Types**: completed, failed, question, permission
-- ⭐ **Main/Side-line Management**: Main-line alerts immediately, side-line alerts when ALL finish
-- 🎯 **⭐ One-click Marker**: Mark main-line from the conversation header or the composer tool row — available before the first message of a new session
-- 🔊 **3 Built-in Sounds**: Chime / Success / Subtle (Web Audio synthesis)
-- 🔔 **Browser Notifications**: System notifications when away
-- 🎛️ **Flexible Config**: Dedicated settings panel, volume control, per-event switches
-- ✨ **Animated Panel**: serif-typeset "Attention is all you need" title over a printed-plate self-attention figure (dark ink lines on a near-white plate, rotating query, zero glow); the mainline marker embeds the official Genshin Primogem texture (honours `prefers-reduced-motion`)
-- 🧪 **Test Coverage**: 62 unit tests, 100% passed
+- 🎯 **Task mode**: `mainline` (default) or `balanced`. In balanced mode, as long as nothing is marked, every session counts as main-line and alerts on its own completion — useful when all tasks matter.
+- ⭐ **Multiple main-line markers**: mark any number of sessions from the composer tool row or a session row's "…" menu; marked sessions keep a star in the sidebar.
+- 🔔 **Side-line alerts**: per finished task (default) or a single aggregate alert when all tasks finish.
+- ✅ **4 event types**: completed, failed, question, permission — each with its own switch and sound.
+- 🔊 **3 built-in sounds**: Chime / Success / Subtle, synthesized with Web Audio (no audio assets); volume 0–100%.
+- 🖥 **Browser notifications** when the tab is in the background; optional alerts for the current session too.
+- 🌗 **Bilingual settings panel** (English / Chinese), respects `prefers-reduced-motion`.
 
-### Quick Start
+### Install
 
-**Requirements**: DeepSeek Harness ≥ 0.1.6-alpha.1
+**Requires** DeepSeek Harness 0.1.7+ (developed and verified against 0.2.1-rc.2).
+
+**Recommended: prebuilt GitHub Release package** (one command, no local build):
 
 ```bash
-# Install from local
-cd /path/to/attention-plugins
-pnpm install && pnpm run build
-dsh plugin --profile web add file:$(pwd)
-
-# Restart DSH Web
+dsh plugin --profile web add "https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.0/attention-plugins-0.2.0.tgz"
 dsh web
 ```
 
-After installation:
-1. Open **Settings → Attention** to configure
-2. Open any session, see **☆ Set as Main** button in header
-3. Click `☆` → becomes `⭐ Main` (orange highlight)
+The tarball already contains `lib/`. The npm package is in preparation; once it ships, install becomes `dsh plugin --profile web add attention-plugins`.
 
-### Use Cases
+**Install from source**:
 
-#### Scenario 1: Main-line Priority
-
-```
-Start 4 tasks: A (main), B, C, D
-- A completes → 🔔 Alert immediately
-- B, C, D complete → Silent
-- All side-line done → 🔔 "All side-line tasks completed"
+```bash
+git clone https://github.com/zjbc2000/attention-plugins.git
+cd attention-plugins
+pnpm install
+pnpm run build
+dsh plugin --profile web add link:"$(pwd)"
+dsh web
 ```
 
-#### Scenario 2: Pure Side-line Mode
+Update a source install with `git pull && pnpm install && pnpm run build`, then refresh the browser. If a server-side file changed, touch `~/.dsh/profiles/web/cordis.patch.yml` to reload the plugin.
 
-```
-Start 3 tasks: A, B, C (no main-line marked)
-- A completes → Silent
-- B completes → Silent
-- C completes → 🔔 "All tasks completed"
-```
+### Quick start
 
-#### Scenario 3: Blocking Interaction
+1. Open **Settings → Attention**.
+2. Click **☆** at the left of a session's composer, or use the session row's "…" menu, to mark it as main-line. Mark as many as you like.
+3. Keep the default `mainline` task mode: main-line alerts immediately, side-line follows the side-line alert mode.
+4. Prefer every task to alert while nothing is marked? Switch to `balanced`.
 
-```
-Session asks a question
-→ 🔔 Notification + 🎵 Chime (question event)
-→ User returns to answer
-```
+### Notification rules
 
-### Configuration
+| Situation | Mainline mode (default) | Balanced mode |
+|---|---|---|
+| At least one marker set | Marked sessions alert immediately; unmarked sessions follow the side-line mode. | Same as mainline mode (markers win). |
+| Nothing marked | Every session is side-line and follows the side-line mode. | Every session is main-line and alerts individually; no aggregate alert. |
+| Question / permission | Always alerts (still subject to event switches and the current-session setting). | Same. |
 
-**Settings Panel** (Settings → Attention):
+**Side-line mode**:
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| 🔊 Sound Notifications | Master switch | ✅ On |
-| 🎵 Sound Effect | Chime / Success / Subtle | Chime |
-| 🔉 Volume | 0-100% | 70% |
-| 🔔 Browser Notifications | System notifications | ❌ Off |
-| 👁️ Alert for Current Session | Also notify when viewing | ❌ Off |
+- **Per finished task**: N tasks ring N times, no aggregate.
+- **Once, when all finish**: side-line completions stay silent; when every running session is idle, one "All tasks" alert fires. If the last completion was main-line, the aggregate is suppressed to avoid a duplicate. Note: in batch mode a side-line **failure** is also folded into the aggregate instead of alerting on its own.
 
-**Per-event Configuration**:
+### Settings
 
-| Event | Default Sound | Description |
-|-------|---------------|-------------|
-| ✅ Completed | Chime | Task finished successfully |
-| ⚠️ Failed | Subtle | Task execution failed |
-| ❓ Question | Success | User answer required |
-| 🔒 Permission | Success | User authorization needed |
+| Setting | Description | Default |
+|---|---|---|
+| 🔊 Sound notifications | Master switch for sounds | On |
+| 🔉 Volume | 0–100% | 70% |
+| 🎵 Event types | Per-event switch and sound for completed / failed / question / permission | All on |
+| 🎯 Task mode | Mainline / balanced | Mainline |
+| 🔔 Side-line alerts | Per finished task / once when all finish | Per finished task |
+| 🖥 Browser notifications | System notifications (permission required) | Off |
+| 👁 Alert for current session | Also alert for the session you are viewing | Off |
+| ⭐ Sidebar star | Show a star for marked sessions in the sidebar | On |
 
-**⭐ Main-line Marker**:
-- Location: Conversation header right side
-- Unmarked: `☆ Set as Main` (gray)
-- Marked: `⭐ Main` (orange highlight)
+### FAQ
 
-### Technical Implementation
+**No sound?** Browsers require a user gesture first — press ▶ on any event card once. Also check system volume, mute, and output device; the plugin recreates its `AudioContext` after device changes.
 
-- **Event Detection**: Listens to `api-session/status` remote events
-- **Edge Detection**: Tracks `running` state (true → false = completed)
-- **Failure Detection**: Listens to `api-session/error` (a genuine agent-loop failure; a user-initiated abort does not raise it), attributed to the run that was active
-- **Question / Permission Detection**: neither has an `api-session/*` remote event — the only source is `pendingInteraction` on the UI status source `ctx.uiSession.sessionStatus` (`kind: 'question' | 'plan-review' | 'approval'`), subscribed via `ctx.inject(['uiSession'])`; the first frame only records a baseline
-- **Sound Synthesis**: Web Audio API (OscillatorNode + GainNode); loudness calibrated to system-alert ballpark (≈ −7~−9 dBFS peaks at 70% volume, with attack ramps against clicks; the low-frequency `subtle` is equal-loudness compensated); AudioContext cold-start priming + `devicechange` recreation, so the first alert after a Bluetooth switch is neither swallowed nor left on a dead route
-- **Notifications**: Notification API (requires user permission)
-- **Storage**: localStorage (`attention-plugins:config`)
-- **Slot Injection**: `conversation.session.header.utilities` (⭐ button)
+**No browser notifications?** Grant permission in settings; they only appear while the tab is in the background; on macOS the browser also needs notification permission in System Settings.
+
+**Duplicate alerts?** No. `per-session` mode never emits the aggregate; `batch` mode alerts main-line sessions immediately and suppresses the aggregate when the last completion was main-line.
+
+**Where is state stored?** `localStorage` key `attention-plugins:config`; it is not synced across browsers or devices.
 
 ### Development
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Build
 pnpm run build
-
-# Watch mode
 pnpm run watch
-
-# Run tests
 pnpm test
-
-# Clean
 pnpm run clean
 ```
 
-**Test Coverage**:
-```
-✓ tests/engine.test.ts (21 tests)
-✓ tests/mainline-sideline-advanced.test.ts (16 tests)
-✓ tests/pending.test.ts (10 tests)
-✓ tests/sound-params.test.ts (15 tests)
-
-Test Files  4 passed (4)
-Tests  62 passed (62)
-```
-
-### Roadmap
-
-- [x] 4 event types (completed / failed / question / permission)
-- [x] Main-line/side-line logic
-- [x] ⭐ Main-line marker button (header slot)
-- [x] Sound notifications (3 built-in effects)
-- [x] Browser notifications
-- [x] Settings panel UI
-- [x] Settings panel motion (serif title + printed-plate figure / official Primogem texture marker / card entrance)
-- [x] English/Chinese localization
-- [x] 47 unit tests
-- [ ] npm publish
-- [ ] Community plugin directory listing
-- [ ] More sound effects
-- [ ] Custom audio upload
-
-**Future Vision**: See [`docs/vision.md`](docs/vision.md)
+6 test files / 92 tests.
 
 ### Credits
 
-Based on the architecture of [@dingyi222666/dsh-session-notification](https://github.com/dingyi222666/dsh-session-notification) (MIT License), completely rewritten and extended with main-line/side-line logic.
+Based on the architecture of [@dingyi222666/dsh-session-notification](https://github.com/dingyi222666/dsh-session-notification) (MIT), rewritten with main-line / side-line prioritization.
 
 ### License
 
-MIT License - see [LICENSE](LICENSE)
+MIT License — see [LICENSE](LICENSE).

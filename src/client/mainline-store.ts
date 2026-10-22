@@ -1,22 +1,44 @@
 /**
- * Shared reactive mainline state so every mounted marker button (header +
- * composer) shows the same value instantly. The durable source of truth
- * stays in localStorage via loadSettings/saveSettings; this store caches the
- * current value in memory and notifies subscribers on change.
+ * Shared reactive mainline state so every mounted marker button (composer +
+ * sidebar menu) shows the same value instantly. Multiple sessions can be
+ * marked at once; the durable source of truth stays in localStorage via
+ * loadSettings/saveSettings, this store caches the current list in memory and
+ * notifies subscribers on change.
  */
 import { loadSettings, saveSettings } from './settings.js'
+import { toggleMainlineSession } from '../settings.js'
 
 const listeners = new Set<() => void>()
 
-function readInitial(): string {
+function readInitial(): string[] {
   try {
-    return loadSettings().mainlineSessionId
+    return [...loadSettings().mainlineSessionIds]
   } catch {
-    return ''
+    return []
   }
 }
 
-let cached = readInitial()
+let cached: string[] = readInitial()
+const EMPTY: readonly string[] = []
+
+function emit(): void {
+  for (const fn of listeners) {
+    try { fn() } catch {}
+  }
+}
+
+function commit(nextInput: readonly string[]): void {
+  const next = [...nextInput]
+  if (next.length === cached.length && next.every((id, i) => id === cached[i])) return
+  cached = next
+  try {
+    const settings = loadSettings()
+    saveSettings({ ...settings, mainlineSessionIds: cached })
+  } catch (err) {
+    console.warn('[attention-plugins] failed to persist mainline state:', err)
+  }
+  emit()
+}
 
 export const mainlineStore = {
   /** useSyncExternalStore subscribe side. */
@@ -26,22 +48,12 @@ export const mainlineStore = {
       listeners.delete(fn)
     }
   },
-  /** useSyncExternalStore getSnapshot side (cached primitive — stable identity). */
-  getSnapshot(): string {
-    return cached
+  /** useSyncExternalStore getSnapshot side (cached array — stable identity). */
+  getSnapshot(): readonly string[] {
+    return cached.length === 0 ? EMPTY : cached
   },
-  /** Write the mainline session id, persist it, and notify every subscriber. */
-  set(id: string): void {
-    if (id === cached) return
-    cached = id
-    try {
-      const settings = loadSettings()
-      saveSettings({ ...settings, mainlineSessionId: id })
-    } catch (err) {
-      console.warn('[attention-plugins] failed to persist mainline state:', err)
-    }
-    for (const fn of listeners) {
-      try { fn() } catch {}
-    }
+  /** Add or remove one session's marker, persist, and notify subscribers. */
+  toggle(sessionId: string): void {
+    commit(toggleMainlineSession(cached, sessionId))
   },
 }

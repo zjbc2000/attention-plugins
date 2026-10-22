@@ -4,6 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NotificationEngine, type NotificationEvent, type NotificationEnginePorts, type SessionDetail } from '../src/client/engine'
+import type { SidelineMode } from '../src/settings'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 
 /** Mock sessions list state. */
@@ -31,17 +32,20 @@ function mockDetail(failed: boolean = false): SessionDetail {
 describe('NotificationEngine - Main-line/Side-line Advanced', () => {
   let emittedEvents: NotificationEvent[]
   let mainlineSessionId: string | null
+  let sidelineMode: SidelineMode
   let engine: NotificationEngine
   let ports: NotificationEnginePorts
 
   beforeEach(() => {
     emittedEvents = []
     mainlineSessionId = null
+    sidelineMode = 'batch' // these cases describe the aggregating mode
 
     ports = {
       titleOf: (id) => `Session ${id}`,
       detailOf: (id) => mockDetail(),
       isMainline: (id) => id === mainlineSessionId,
+      sidelineMode: () => sidelineMode,
       emit: (event) => emittedEvents.push(event),
       settle: () => Promise.resolve(),
     }
@@ -87,7 +91,7 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
       expect(mainEvent).toBeDefined()
     })
 
-    it('should handle multiple main-line sessions (only latest counts)', async () => {
+    it('should handle the main-line marker moving between sessions', async () => {
       // Start A, B, C all running
       engine.seed(mockSessionList([
         { id: 'A', running: true },
@@ -381,7 +385,7 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
   })
 
   describe('Doesn\'t break DSH original behavior', () => {
-    it('should work without any main-line (pure side-line mode)', async () => {
+    it('should work without any main-line set (batch mode)', async () => {
       // No main-line set
       mainlineSessionId = null
 
@@ -471,6 +475,92 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       // Side-line fires for B
       expect(emittedEvents).toHaveLength(1)
+    })
+  })
+
+  describe('Per-session mode on the remote event path (0.1.7 wiring)', () => {
+    // The browser wiring feeds observeStatus(), not observe(): these cover the
+    // path production actually uses, where the aggregate edge is computed from
+    // the accumulated prevRunning map rather than from a snapshot.
+    beforeEach(() => {
+      sidelineMode = 'per-session'
+    })
+
+    it('should alert each side-line session from api-session/status events', async () => {
+      engine.observeAdded({ id: 'A', running: true })
+      engine.observeAdded({ id: 'B', running: true })
+      engine.observeAdded({ id: 'C', running: true })
+
+      // A finishes while B and C keep running
+      engine.observeStatus('A', false)
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents.map(e => e.sessionId)).toEqual(['A'])
+
+      // B finishes
+      engine.observeStatus('B', false)
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents.map(e => e.sessionId)).toEqual(['A', 'B'])
+
+      // C is the last one running: still its own alert, never an aggregate
+      engine.observeStatus('C', false)
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents.map(e => e.sessionId)).toEqual(['A', 'B', 'C'])
+      expect(emittedEvents.some(e => e.title === 'All tasks')).toBe(false)
+    })
+
+    it('should not aggregate when the last task finishes', async () => {
+      engine.observeAdded({ id: 'A', running: true })
+      engine.observeAdded({ id: 'B', running: true })
+
+      engine.observeStatus('A', false)
+      engine.observeStatus('B', false)
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      // Exactly two per-session alerts, no third aggregate one
+      expect(emittedEvents).toHaveLength(2)
+      expect(emittedEvents.every(e => e.title.startsWith('Session '))).toBe(true)
+    })
+
+    it('should still aggregate in batch mode on the same path', async () => {
+      sidelineMode = 'batch'
+
+      engine.observeAdded({ id: 'A', running: true })
+      engine.observeAdded({ id: 'B', running: true })
+
+      engine.observeStatus('A', false)
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents).toHaveLength(0)
+
+      engine.observeStatus('B', false)
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].title).toBe('All tasks')
+    })
+
+    it('should alert a re-run of the same session again', async () => {
+      engine.observeAdded({ id: 'A', running: true })
+      engine.observeStatus('A', false)
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents).toHaveLength(1)
+
+      // Same session starts and finishes a second run
+      engine.observeStatus('A', true)
+      engine.observeStatus('A', false)
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents).toHaveLength(2)
+      expect(emittedEvents[1].sessionId).toBe('A')
+    })
+
+    it('should drop tracking for a removed session without alerting', async () => {
+      engine.observeAdded({ id: 'A', running: true })
+      engine.observeAdded({ id: 'B', running: true })
+
+      engine.observeRemoved('A')
+      engine.observeStatus('B', false)
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents.map(e => e.sessionId)).toEqual(['B'])
     })
   })
 

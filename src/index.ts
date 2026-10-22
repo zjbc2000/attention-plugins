@@ -24,7 +24,9 @@ export function apply(ctx: Context, config: Config) {
         volume: 70,
         browserEnabled: false,
         notifyCurrent: false,
-        mainlineSessionId: '',
+        mainlineSessionIds: [],
+        sidelineMode: 'per-session',
+        mainlineMode: 'mainline',
         types: {
           completed: { enabled: true, sound: 'chime' },
           failed: { enabled: true, sound: 'subtle' },

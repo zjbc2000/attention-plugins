@@ -1,9 +1,12 @@
 /**
  * Notification engine for attention-plugins.
  * Supports 4 event types: completed, failed, question, permission.
- * Implements main-line/side-line logic:
- * - Main-line: marked session alerts immediately on completion
- * - Side-line: all running sessions alert once when ALL become idle
+ *
+ * Side-line alerting is a user setting (`ports.sidelineMode`):
+ * - `per-session` (default): EVERY session alerts on its own completion, main
+ *   line or not, and no aggregate "all tasks" alert is ever raised.
+ * - `batch`: only the main line alerts immediately; side-line sessions stay
+ *   quiet and one aggregate alert fires when ALL running sessions go idle.
  *
  * Two equivalent inputs feed the same state machine:
  * - observe()/seed(): full sessions-list snapshots (0.1.6 store wiring, tests)
@@ -12,7 +15,7 @@
  */
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import type { SessionListState, SessionSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { NotificationType } from '../settings.js'
+import type { NotificationType, SidelineMode } from '../settings.js'
 
 /** One notification event. */
 export interface NotificationEvent {
@@ -51,6 +54,11 @@ export interface NotificationEnginePorts {
   detailOf: (sessionId: SessionId) => SessionDetail | undefined
   /** Whether one session is marked as main-line. */
   isMainline: (sessionId: SessionId) => boolean
+  /**
+   * How side-line (non-main-line) sessions are alerted. Read on every run
+   * completion so switching the setting takes effect without a reload.
+   */
+  sidelineMode: () => SidelineMode
   /** Deliver one notification event. */
   emit: (event: NotificationEvent) => void
   /** Wait for trailing wire frames after a running edge (settle window). */
@@ -121,9 +129,10 @@ export class NotificationEngine {
       this.prevRunning.set(id, nowRunning)
     }
 
-    // Side-line logic: detect "had running → all idle" edge
-    // BUT suppress if main-line just completed (avoid duplicate notification)
-    if (this.hadRunning && !hasRunning && !mainlineJustCompleted) {
+    // Side-line logic: detect "had running → all idle" edge. Only the `batch`
+    // mode aggregates; in `per-session` mode every session already alerted
+    // itself, so an aggregate would just be a duplicate.
+    if (this.aggregates() && this.hadRunning && !hasRunning && !mainlineJustCompleted) {
       this.emitSidelineComplete()
     }
     this.hadRunning = hasRunning
@@ -161,7 +170,7 @@ export class NotificationEngine {
     for (const v of this.prevRunning.values()) {
       if (v) { hasRunning = true; break }
     }
-    if (this.hadRunning && !hasRunning && !mainlineJustCompleted) {
+    if (this.aggregates() && this.hadRunning && !hasRunning && !mainlineJustCompleted) {
       this.emitSidelineComplete()
     }
     this.hadRunning = hasRunning
@@ -252,6 +261,11 @@ export class NotificationEngine {
     this.hadRunning = hasRunning
   }
 
+  /** Whether side-line sessions are aggregated instead of alerted one by one. */
+  private aggregates(): boolean {
+    return this.ports.sidelineMode() === 'batch'
+  }
+
   /** Capture pre-run baseline. */
   private armRun(id: SessionId): void {
     const detail = this.ports.detailOf(id)
@@ -293,8 +307,10 @@ export class NotificationEngine {
 
       const kind: NotificationType = failed ? 'failed' : 'completed'
 
-      // Main-line: alert immediately
-      if (this.ports.isMainline(id)) {
+      // `per-session` (default): every finished run alerts, main-line or not.
+      // `batch`: only the main line alerts; side-line runs are silent and are
+      // covered by the aggregate "all idle" alert instead.
+      if (this.ports.isMainline(id) || !this.aggregates()) {
         this.ports.emit({
           kind,
           sessionId: id,
@@ -302,8 +318,8 @@ export class NotificationEngine {
           detail: message,
         })
       }
-      // Side-line completions are handled by "all idle" edge in observe()/observeStatus()
-      // (no individual per-session notification for side-line)
+      // In `batch` mode, side-line completions are handled by the "all idle"
+      // edge in observe()/observeStatus() (no individual per-session alert).
 
     } finally {
       this.settling.delete(id)

@@ -3,8 +3,8 @@
  * Registers an "Attention" section in DSH Settings using the settings.section slot.
  */
 import React, { useState, useCallback, useEffect } from 'react'
-import type { AttentionSettings, SoundId, NotificationType } from '../settings.js'
-import { defaultSettings } from '../settings.js'
+import type { AttentionSettings, SoundId, NotificationType, SidelineMode, MainlineMode } from '../settings.js'
+import { defaultSettings, normalizeSettings } from '../settings.js'
 import { playSound } from './sounds.js'
 import { requestPermission, canNotify, showNotification } from './notification.js'
 import { locales, resolveLocaleCode } from './locales.js'
@@ -20,16 +20,7 @@ export function loadSettings(): AttentionSettings {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (!stored) return defaultSettings
     
-    const parsed = JSON.parse(stored)
-    // Merge with defaults to handle new fields
-    return {
-      ...defaultSettings,
-      ...parsed,
-      types: {
-        ...defaultSettings.types,
-        ...(parsed.types || {}),
-      },
-    }
+    return normalizeSettings(JSON.parse(stored))
   } catch (err) {
     console.warn('[attention-plugins] Failed to load settings:', err)
     return defaultSettings
@@ -51,6 +42,24 @@ interface SettingsSectionProps {
 }
 
 const eventTypes: NotificationType[] = ['completed', 'failed', 'question', 'permission']
+
+/** Side-line alert modes, in the order they are offered (default first). */
+const SIDELINE_OPTIONS: ReadonlyArray<{
+  mode: SidelineMode
+  labelKey: keyof typeof locales['en']
+}> = [
+  { mode: 'per-session', labelKey: 'settings.sideline.perSession' },
+  { mode: 'batch', labelKey: 'settings.sideline.batch' },
+]
+
+/** Task modes, in the order they are offered (the default first). */
+const MAINLINE_MODE_OPTIONS: ReadonlyArray<{
+  mode: MainlineMode
+  labelKey: keyof typeof locales['en']
+}> = [
+  { mode: 'mainline', labelKey: 'settings.mode.mainline' },
+  { mode: 'balanced', labelKey: 'settings.mode.balanced' },
+]
 
 /** Attention settings section component. */
 export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps) {
@@ -252,6 +261,36 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
         </div>
       </div>
       
+      {/* Task Mode */}
+      <div style={{ marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px' }}>
+          {t('settings.mode.label')}
+        </h3>
+        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', lineHeight: '1.5', marginBottom: '10px' }}>
+          {t('settings.mode.description')}
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {MAINLINE_MODE_OPTIONS.map(({ mode, labelKey }) => (
+            <label
+              key={mode}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}
+            >
+              <input
+                type="radio"
+                name="attention-mainline-mode"
+                checked={settings.mainlineMode === mode}
+                onChange={() => updateSetting('mainlineMode', mode)}
+                style={{ accentColor: 'var(--dsw-alias-state-business-primary)' }}
+              />
+              <span>{t(labelKey)}</span>
+            </label>
+          ))}
+        </div>
+        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-tertiary)', marginTop: '8px', fontStyle: 'italic' }}>
+          {t('settings.mode.hint')}
+        </p>
+      </div>
+
       {/* Main-line Session Marker */}
       <div style={{ marginBottom: '24px', padding: '12px', background: 'var(--dsw-alias-bg-layer-2)', borderRadius: '6px' }}>
         <h3 style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -266,6 +305,36 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
         </p>
       </div>
       
+      {/* Side-line Alert Mode */}
+      <div style={{ marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px' }}>
+          {t('settings.sideline.label')}
+        </h3>
+        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', lineHeight: '1.5', marginBottom: '10px' }}>
+          {t('settings.sideline.description')}
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginLeft: '0' }}>
+          {SIDELINE_OPTIONS.map(({ mode, labelKey }) => (
+            <label
+              key={mode}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}
+            >
+              <input
+                type="radio"
+                name="attention-sideline-mode"
+                checked={settings.sidelineMode === mode}
+                onChange={() => updateSetting('sidelineMode', mode)}
+                style={{ accentColor: 'var(--dsw-alias-state-business-primary)' }}
+              />
+              <span>{t(labelKey)}</span>
+            </label>
+          ))}
+        </div>
+        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-tertiary)', marginTop: '8px', fontStyle: 'italic' }}>
+          {t('settings.sideline.hint')}
+        </p>
+      </div>
+
       {/* Browser Notifications */}
       <div style={{ marginBottom: '24px' }}>
         <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>

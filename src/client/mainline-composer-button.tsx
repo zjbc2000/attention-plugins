@@ -31,13 +31,13 @@ export interface MainlineComposerButtonProps extends MainlineInjected {
 /** Compact icon-only main-line toggle rendered in the composer tool row. */
 export function MainlineComposerButton(props: MainlineComposerButtonProps) {
   const { sessionId, onToggle, t, setSeen } = props
-  const mainlineId = useSyncExternalStore(mainlineStore.subscribe, mainlineStore.getSnapshot)
+  const mainlineIds = useSyncExternalStore(mainlineStore.subscribe, mainlineStore.getSnapshot)
 
   // Best-effort view tracking for notifyCurrent gating (idempotent per render).
   if (sessionId != null && setSeen) setSeen(sessionId)
 
   // All hooks run unconditionally; the tool row may mount before a session binds.
-  const active = sessionId != null && mainlineId === sessionId
+  const active = sessionId != null && mainlineIds.includes(sessionId)
 
   const handleClick = useCallback(() => {
     if (sessionId == null) return

@@ -21,6 +21,7 @@ import { NotificationEngine, type SessionDetail } from './engine.js'
 import { playSound } from './sounds.js'
 import { showNotification } from './notification.js'
 import { loadSettings, saveSettings, AttentionSettingsSection } from './settings.js'
+import { isMainlineSession } from '../settings.js'
 import { locales, resolveLocaleCode } from './locales.js'
 import { mainlineStore } from './mainline-store.js'
 import { MainlineComposerButton } from './mainline-composer-button.js'
@@ -43,7 +44,7 @@ function translate(key: string): string {
 function mainlineFace() {
   return {
     onToggle: (id: SessionId) => {
-      mainlineStore.set(mainlineStore.getSnapshot() === id ? '' : id)
+      mainlineStore.toggle(id)
     },
     t: translate,
     setSeen: (id: SessionId) => {
@@ -126,7 +127,12 @@ export function apply(ctx: Context, config: Config) {
           finalText: '',
         }
       },
-      isMainline: (sessionId: SessionId) => mainlineStore.getSnapshot() === sessionId,
+      isMainline: (sessionId: SessionId) => {
+        const settings = loadSettings()
+        return isMainlineSession(sessionId, mainlineStore.getSnapshot(), settings.mainlineMode)
+      },
+      // Read per completion so flipping the setting applies immediately.
+      sidelineMode: () => loadSettings().sidelineMode,
       emit: (event) => {
         const settings = loadSettings()
         const typeSettings = settings.types[event.kind]

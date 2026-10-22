@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NotificationEngine, type NotificationEvent, type NotificationEnginePorts, type SessionDetail } from '../src/client/engine'
+import type { SidelineMode } from '../src/settings'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 
 /** Mock sessions list state. */
@@ -30,17 +31,20 @@ function mockDetail(failed: boolean = false): SessionDetail {
 describe('NotificationEngine', () => {
   let emittedEvents: NotificationEvent[]
   let mainlineSessionId: string | null
+  let sidelineMode: SidelineMode
   let engine: NotificationEngine
   let ports: NotificationEnginePorts
 
   beforeEach(() => {
     emittedEvents = []
     mainlineSessionId = null
+    sidelineMode = 'per-session' // production default
 
     ports = {
       titleOf: (id) => `Session ${id}`,
       detailOf: (id) => mockDetail(),
       isMainline: (id) => id === mainlineSessionId,
+      sidelineMode: () => sidelineMode,
       emit: (event) => emittedEvents.push(event),
       settle: () => Promise.resolve(),
     }
@@ -48,7 +52,143 @@ describe('NotificationEngine', () => {
     engine = new NotificationEngine(ports)
   })
 
-  describe('Side-line logic (default)', () => {
+  describe('Per-session mode (default)', () => {
+    it('should notify for every side-line session as it completes', async () => {
+      // Seed: A, B, C all running, none marked main-line
+      engine.seed(mockSessionList([
+        { id: 'A', running: true },
+        { id: 'B', running: true },
+        { id: 'C', running: true },
+      ]))
+
+      // A completes while B and C keep running
+      engine.observe(mockSessionList([
+        { id: 'A', running: false },
+        { id: 'B', running: true },
+        { id: 'C', running: true },
+      ]))
+
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      // A alerted on its own — no "wait for everyone" behaviour
+      expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].kind).toBe('completed')
+      expect(emittedEvents[0].sessionId).toBe('A')
+      expect(emittedEvents[0].title).toBe('Session A')
+      expect(emittedEvents[0].detail).toBe('Done')
+    })
+
+    it('should ring once per finished task (N tasks = N alerts)', async () => {
+      engine.seed(mockSessionList([
+        { id: 'A', running: true },
+        { id: 'B', running: true },
+        { id: 'C', running: true },
+      ]))
+
+      for (const done of ['A', 'B', 'C']) {
+        engine.observe(mockSessionList([
+          { id: 'A', running: done === 'A' ? false : true },
+          { id: 'B', running: done === 'B' ? false : true },
+          { id: 'C', running: done === 'C' ? false : true },
+        ]))
+        await new Promise(resolve => setTimeout(resolve, 150))
+      }
+
+      expect(emittedEvents.map(e => e.sessionId)).toEqual(['A', 'B', 'C'])
+      // No aggregate "All tasks" alert is added on top.
+      expect(emittedEvents.every(e => e.title.startsWith('Session '))).toBe(true)
+    })
+
+    it('should NOT emit the aggregate "All tasks" alert', async () => {
+      engine.seed(mockSessionList([
+        { id: 'A', running: true },
+        { id: 'B', running: true },
+      ]))
+
+      engine.observe(mockSessionList([
+        { id: 'A', running: false },
+        { id: 'B', running: true },
+      ]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      // B is the last one running: the all-idle edge must stay silent
+      engine.observe(mockSessionList([
+        { id: 'A', running: false },
+        { id: 'B', running: false },
+      ]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents.map(e => e.sessionId)).toEqual(['A', 'B'])
+      expect(emittedEvents.some(e => e.title === 'All tasks')).toBe(false)
+      expect(emittedEvents.some(e => e.detail.includes('All side-line'))).toBe(false)
+    })
+
+    it('should classify a side-line failure like any other run', async () => {
+      let runStarted = false
+      ports.detailOf = () => mockDetail(runStarted)
+
+      engine.seed(mockSessionList([{ id: 'A', running: true }]))
+      runStarted = true
+
+      engine.observe(mockSessionList([{ id: 'A', running: false }]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].kind).toBe('failed')
+      expect(emittedEvents[0].sessionId).toBe('A')
+    })
+
+    it('should alert main-line and side-line identically', async () => {
+      mainlineSessionId = 'MAIN'
+
+      engine.seed(mockSessionList([
+        { id: 'MAIN', running: true },
+        { id: 'A', running: true },
+      ]))
+
+      // Both complete at once
+      engine.observe(mockSessionList([
+        { id: 'MAIN', running: false },
+        { id: 'A', running: false },
+      ]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents.map(e => e.sessionId).sort()).toEqual(['A', 'MAIN'])
+    })
+
+    it('should honour a mid-run mode switch', async () => {
+      // Starts in batch mode: A stays silent while B runs
+      sidelineMode = 'batch'
+      engine.seed(mockSessionList([
+        { id: 'A', running: true },
+        { id: 'B', running: true },
+      ]))
+
+      engine.observe(mockSessionList([
+        { id: 'A', running: false },
+        { id: 'B', running: true },
+      ]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents).toHaveLength(0)
+
+      // User switches to per-session while B is still running
+      sidelineMode = 'per-session'
+
+      engine.observe(mockSessionList([
+        { id: 'A', running: false },
+        { id: 'B', running: false },
+      ]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents.map(e => e.sessionId)).toEqual(['B'])
+    })
+  })
+
+  describe('Side-line logic (batch mode)', () => {
+    beforeEach(() => {
+      sidelineMode = 'batch'
+    })
+
     it('should NOT notify when single session completes (others still running)', async () => {
       // Seed: A, B, C all running
       engine.seed(mockSessionList([

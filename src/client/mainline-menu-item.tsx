@@ -20,7 +20,7 @@ export interface MainlineMenuItemProps extends MainlineInjected {
 
 export function MainlineMenuItem(props: MainlineMenuItemProps) {
   const { sessionId, onToggle, t, useMenuOpenState } = props
-  const mainlineId = useSyncExternalStore(mainlineStore.subscribe, mainlineStore.getSnapshot)
+  const mainlineIds = useSyncExternalStore(mainlineStore.subscribe, mainlineStore.getSnapshot)
 
   // The hook is bound while the row-menu slot exists; presence is stable per
   // mount, so calling it conditionally here keeps hook order consistent.
@@ -34,7 +34,7 @@ export function MainlineMenuItem(props: MainlineMenuItemProps) {
     }
   }
 
-  const active = sessionId != null && mainlineId === sessionId
+  const active = sessionId != null && mainlineIds.includes(sessionId)
 
   if (sessionId == null) return null
 

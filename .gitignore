@@ -1,12 +1,27 @@
+# ── dependencies ──────────────────────────────────────────────────────────
 node_modules/
-*.tsbuildinfo
-*.log
-.DS_Store
 .pnpm-store/
 
-# ── build output（lib 由 pnpm run build 生成；npm files 字段发布时仍会包含）──
+# ── build output（由 pnpm run build 生成；npm 的 files 白名单会单独包含 lib）──
 lib/
+*.tsbuildinfo
+coverage/
+dist/
 
-# ── 开发过程材料：产品原型 / 参考图与截图 ──
+# ── logs / local env ──────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+.env
+.env.*
+!.env.example
+
+# ── editor / OS ───────────────────────────────────────────────────────────
+.DS_Store
+.vscode/
+.idea/
+
+# ── package artifacts ─────────────────────────────────────────────────────
+*.tgz
+
+# ── 本地设计工作区：原型、参考图、未发布截图 ────────────────────────────────
 design-demos/
-docs/mainline-style-prototypes.html
