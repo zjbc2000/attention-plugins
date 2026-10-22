@@ -326,3 +326,17 @@ catalog: add zjbc2000/attention-plugins
 - 目录仓库：<https://github.com/awesome-dsh-plugin/awesome-dsh-plugin>
 - 市场：`dshmarket`（`dsh plugin --profile web add dshmarket`）
 - 本仓库：<https://github.com/zjbc2000/attention-plugins>
+
+## 10. 执行记录（2026-10-22）
+
+| 动作 | 状态 | 地址 / 说明 |
+|---|---|---|
+| git commit + push | ✅ | `d2bbdbf`，main 分支 |
+| tag + GitHub Release | ✅ | <https://github.com/zjbc2000/attention-plugins/releases/tag/v0.2.0> |
+| 预构建 tarball | ✅ | <https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.0/attention-plugins-0.2.0.tgz>（已用 `dsh plugin add` 实测安装成功） |
+| 仓库 CI | ✅ | GitHub Actions `CI` 绿色（Node 22 + pnpm 11） |
+| 目录 PR | ⏳ 待审核 | <https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/8802> |
+| npm 发布 | ⏸ 待登录 | 本机未登录 npm。执行 `npm login` 后运行 `npm publish --access public`，或让我来跑 |
+| 本机 web profile | ✅ | `link:` 安装已指向新构建，已 touch `cordis.patch.yml` 触发 HMR |
+
+拿到目录流量后的下一步：按 §6.4 的文案发 V2EX「分享创造」与即刻/X；有 npm 包后再把 README 的安装命令换成 `dsh plugin --profile web add attention-plugins`，并给目录条目补 `icon:` / `screenshots.json`（需要真实截图）。
