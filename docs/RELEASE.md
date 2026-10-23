@@ -2,7 +2,7 @@
 
 > 目标：把 v0.2.0 发布到 DSH 社区目录，并让「任务分级通知」这个定位被目标用户看见。
 >
-> 现状（2026-10-23）：代码与测试已就绪（92 tests），版本已升到 0.2.0。**已决定保留现名 `attention-plugins`，不再改名。** npm 已发布（`attention-plugins@0.2.0`，2026-10-23），GitHub Release 预构建 tarball 保留作为国内网络环境的备选安装方式；目录 PR 待合并。
+> 现状（2026-10-23）：代码与测试已就绪（92 tests），版本已升到 0.2.0。**已决定保留现名 `attention-plugins`，不再改名。** npm 已发布（`attention-plugins@0.2.0`，2026-10-23），GitHub Release 预构建 tarball 保留作为国内网络环境的备选安装方式；目录条目已合并进 `awesome-dsh-plugin`，市场按「npm 优先、tarball 兜底」的规则会自动使用 npm 包。
 
 ## 0. 结论（TL;DR）
 
@@ -337,7 +337,7 @@ catalog: add zjbc2000/attention-plugins
 | tag + GitHub Release | ✅ | <https://github.com/zjbc2000/attention-plugins/releases/tag/v0.2.0> |
 | 预构建 tarball | ✅ | <https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.0/attention-plugins-0.2.0.tgz>（已用 `dsh plugin add` 实测安装成功） |
 | 仓库 CI | ✅ | GitHub Actions `CI` 绿色（Node 22 + pnpm 11） |
-| 目录 PR | ⏳ 待审核 | <https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/8802> |
+| 目录 PR | ✅ 已合并 | <https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/8802>（条目 `data/plugins/zjbc2000__attention-plugins.yml`，category `notify`） |
 | npm 发布 | ✅ | `attention-plugins@0.2.0`（2026-10-23 发布，用 granular token + bypass 2FA 完成） |
 | 本机 web profile | ✅ | `link:` 安装已指向新构建，已 touch `cordis.patch.yml` 触发 HMR |
 
