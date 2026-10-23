@@ -51,14 +51,15 @@ attention-plugins 让任务有主次：
 
 **要求**：DeepSeek Harness 0.1.7+（开发与验证环境为 0.2.1-rc.2）。更早版本的会话 store API 已不适用。
 
-**推荐：GitHub Release 预构建包**（一条命令，无需本地构建）：
+**推荐：npm**（一条命令，无需本地构建）：
 
 ```bash
-dsh plugin --profile web add "https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.0/attention-plugins-0.2.0.tgz"
+dsh plugin --profile web add attention-plugins
 dsh web
 ```
 
-预构建包已包含 `lib/`，安装后即可使用。npm 包正在准备中，发布后安装命令会简化为 `dsh plugin --profile web add attention-plugins`（见 [docs/RELEASE.md](docs/RELEASE.md)）。
+包内已带 `lib/`，安装后即可使用。访问不了 npm 时，可改用 [GitHub Release 预构建包](https://github.com/zjbc2000/attention-plugins/releases)：
+`dsh plugin --profile web add "https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.0/attention-plugins-0.2.0.tgz"`。
 
 **从源码安装**：
 
@@ -76,8 +77,8 @@ dsh web
 **更新**：
 
 ```bash
-# 预构建包：重新安装新版本的 tgz 即可
-dsh plugin --profile web add "<新版本 tgz 地址>"
+# npm：重新安装即可拿到 latest
+dsh plugin --profile web add attention-plugins
 
 # 源码 / link: 安装：
 git pull && pnpm install && pnpm run build
@@ -186,7 +187,8 @@ pnpm run clean    # 清理 lib/
 - [x] 支线通知方式（per-session / batch）
 - [x] 3 种内置音效、音量、浏览器通知
 - [x] 中英双语设置面板
-- [ ] npm 发布与社区目录收录
+- [x] npm 发布（`attention-plugins@0.2.0`）
+- [ ] 社区目录收录（PR 待合并）
 - [ ] 更多音效 / 自定义音频
 - [ ] 每个会话单独静音
 - [ ] 通知历史
@@ -229,14 +231,15 @@ attention-plugins gives tasks a priority:
 
 **Requires** DeepSeek Harness 0.1.7+ (developed and verified against 0.2.1-rc.2).
 
-**Recommended: prebuilt GitHub Release package** (one command, no local build):
+**Recommended: npm** (one command, no local build):
 
 ```bash
-dsh plugin --profile web add "https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.0/attention-plugins-0.2.0.tgz"
+dsh plugin --profile web add attention-plugins
 dsh web
 ```
 
-The tarball already contains `lib/`. The npm package is in preparation; once it ships, install becomes `dsh plugin --profile web add attention-plugins`.
+The package ships `lib/`, so it works right after install. If you cannot reach npm, use the [prebuilt GitHub Release tarball](https://github.com/zjbc2000/attention-plugins/releases) instead:
+`dsh plugin --profile web add "https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.0/attention-plugins-0.2.0.tgz"`.
 
 **Install from source**:
 

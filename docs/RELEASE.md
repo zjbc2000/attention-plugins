@@ -2,13 +2,13 @@
 
 > 目标：把 v0.2.0 发布到 DSH 社区目录，并让「任务分级通知」这个定位被目标用户看见。
 >
-> 现状（2026-10-22）：代码与测试已就绪（92 tests），版本已升到 0.2.0。**已决定保留现名 `attention-plugins`，不再改名。** npm 尚未登录发布，先用 GitHub Release 预构建 tarball 分发并上架目录；npm 登录后补发，安装命令即可缩短。
+> 现状（2026-10-23）：代码与测试已就绪（92 tests），版本已升到 0.2.0。**已决定保留现名 `attention-plugins`，不再改名。** npm 已发布（`attention-plugins@0.2.0`，2026-10-23），GitHub Release 预构建 tarball 保留作为国内网络环境的备选安装方式；目录 PR 待合并。
 
 ## 0. 结论（TL;DR）
 
 - **最终决定：保留 `attention-plugins`，不改名。** 理由：改名收益主要是搜索前缀，但会丢失已有的仓库/文档/设置命名空间一致性，而当前 0 star、目录未上架，靠目录收录与描述同样能获得曝光；等有下载量后再评估改名也来得及。
 - **不要改名成 `dsh-attention`**：该名字已被 AnLifeX 的同类插件占用（`dsh-attention@0.4.1`，2026-08-21 创建，带桌面宠物和审批/提问通知，属于同一细分）。改名应避开这个前缀。
-- **发布路径（实际执行）**：版本与元数据 → GitHub 推送/tag/Release（附预构建 `attention-plugins-0.2.0.tgz`）→ `awesome-dsh-plugin` 目录 PR（用 `tarball:` 字段）→ 中文社区分发 → npm 登录后补发 → 两周复盘。
+- **发布路径（实际执行）**：版本与元数据 → GitHub 推送/tag/Release（附预构建 `attention-plugins-0.2.0.tgz`）→ `awesome-dsh-plugin` 目录 PR（用 `tarball:` 字段）→ npm 发布 → 中文社区分发 → 两周复盘。
 - **流量主通道**：DSH 内置市场 `dshmarket` 的目录（唯一市场）> npm 下载量排序 > GitHub topic/星标 > 社区内容。
 - **定位**：不是「又一个通知插件」，而是**通知降噪 / 任务分级**——主线即时、支线汇总、均衡模式兜底。这是与现有通知插件最大的差异。
 
@@ -94,10 +94,12 @@ pnpm test && pnpm run build
 npm pack --dry-run          # 关键：确认 lib/ 和 cordis.patch.yml 在包里
 npm pack --dry-run 2>&1 | grep -E "lib/|cordis.patch.yml|README|LICENSE"
 
-# 3) 发布（需要 npm 2FA）
-npm login
+# 3) 发布（安全密钥型 2FA 账号的可行路径）
+# npm 自 2025-09 起新账号只能用安全密钥，CLI 的浏览器认证回跳常报 /-/v1/done 404；
+# 实测可行：网页创建一个勾选 Bypass two-factor authentication 的 granular token（Read and write），
+npm config set //registry.npmjs.org/:_authToken=<token>
+npm token list --json   # 确认 bypass_2fa: true
 npm publish --access public
-# 如开了 2FA：npm publish --otp=<6 位码>
 
 # 4) 验证
 npm view <包名> version dist.tarball
@@ -336,7 +338,7 @@ catalog: add zjbc2000/attention-plugins
 | 预构建 tarball | ✅ | <https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.0/attention-plugins-0.2.0.tgz>（已用 `dsh plugin add` 实测安装成功） |
 | 仓库 CI | ✅ | GitHub Actions `CI` 绿色（Node 22 + pnpm 11） |
 | 目录 PR | ⏳ 待审核 | <https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/8802> |
-| npm 发布 | ⏸ 待登录 | 本机未登录 npm。执行 `npm login` 后运行 `npm publish --access public`，或让我来跑 |
+| npm 发布 | ✅ | `attention-plugins@0.2.0`（2026-10-23 发布，用 granular token + bypass 2FA 完成） |
 | 本机 web profile | ✅ | `link:` 安装已指向新构建，已 touch `cordis.patch.yml` 触发 HMR |
 
-拿到目录流量后的下一步：按 §6.4 的文案发 V2EX「分享创造」与即刻/X；有 npm 包后再把 README 的安装命令换成 `dsh plugin --profile web add attention-plugins`，并给目录条目补 `icon:` / `screenshots.json`（需要真实截图）。
+拿到目录流量后的下一步：按 §6.4 的文案发 V2EX「分享创造」与即刻/X；README 安装命令已切换为 `dsh plugin --profile web add attention-plugins`；目录条目仍待补 `icon:` / `screenshots.json`（需要真实截图）。
