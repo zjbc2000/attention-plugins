@@ -16,6 +16,16 @@
 
 <p align="center"><a href="#中文">中文</a> · <a href="#english">English</a></p>
 
+## 截图 / Screenshots
+
+<p align="center">
+  <img alt="声音通知、音量与事件类型（完成 / 失败 / 提问）设置" src="docs/images/settings-sounds-and-events.png" width="400">
+  <img alt="任务模式、主线任务标记与支线通知方式设置" src="docs/images/settings-task-mode.png" width="400">
+</p>
+
+<p align="center"><sub>Settings → Attention：声音与事件类型 · 任务模式与支线通知</sub><br/>
+<sub>Settings → Attention: sounds &amp; event types · task mode &amp; side-line alerts</sub></p>
+
 ---
 
 ## 中文
