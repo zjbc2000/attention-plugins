@@ -99,7 +99,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/zjbc2000/attention-plugins.git"
+    "url": "git+https://github.com/zjbc2000/attention-plugins.git"
   },
   "bugs": {
     "url": "https://github.com/zjbc2000/attention-plugins/issues"
