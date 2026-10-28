@@ -73,7 +73,7 @@ dsh web
 ```
 
 包内已带 `lib/`，安装后即可使用。访问不了 npm 时，可改用 [GitHub Release 预构建包](https://github.com/zjbc2000/attention-plugins/releases)：
-`dsh plugin --profile web add "https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.0/attention-plugins-0.2.0.tgz"`。
+`dsh plugin --profile web add "https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.1/attention-plugins-0.2.1.tgz"`。
 
 **从源码安装**：
 
