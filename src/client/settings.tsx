@@ -11,6 +11,7 @@ import { locales, resolveLocaleCode } from './locales.js'
 import { attentionCss } from './effects.js'
 import { AttentionFigure } from './attention-figure.js'
 import { SparkStar } from './spark-star.js'
+import { requestSidebarBadgeRescan } from './events.js'
 
 const STORAGE_KEY = 'attention-plugins:config'
 
@@ -421,7 +422,13 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
           <input
             type="checkbox"
             checked={settings.sidebarBadge}
-            onChange={e => updateSetting('sidebarBadge', e.target.checked)}
+            onChange={e => {
+              updateSetting('sidebarBadge', e.target.checked)
+              // The badge lives in the sidebar DOM, not in this React tree;
+              // without a nudge, flipping the switch back on would only take
+              // effect at the next unrelated sidebar mutation.
+              requestSidebarBadgeRescan()
+            }}
             style={{ marginRight: '8px', accentColor: 'var(--dsw-alias-state-business-primary)' }}
           />
           <span style={{ fontWeight: 500 }}>{t('settings.badge.label')}</span>

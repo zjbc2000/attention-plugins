@@ -1,6 +1,6 @@
 {
   "name": "attention-plugins",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DSH task-priority session notifications: main-line tasks alert immediately, side-line completions can be batched, plus questions and permission requests.",
   "author": "zjbc2000",
   "type": "module",

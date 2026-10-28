@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented here.
 
+## 0.2.1 — 2026-10-26
+
+### Fixed
+
+- **Sidebar mainline star missing for short session titles.** The row→session
+  resolver required a title of at least 4 characters, so two-character names
+  (天机, 天时) never resolved — and the scan then *removed* their star, which is
+  why the badge came and went between sessions. Any title length now resolves,
+  and the longest matching title wins so 天机 cannot claim 天机显示's row.
+- **Row identity now comes from `data-row-key`.** DSH writes
+  `data-row-key="session:<id>"` on every sidebar session row; reading it is
+  authoritative and no longer depends on titles being unique or on hashed
+  class names (`sessionRow` is only the fallback selector now).
+- **Settings → 侧边栏星标** now re-runs the badge scan immediately, so turning
+  the star back on no longer waits for an unrelated sidebar mutation.
+
+### Tests
+
+- 105 tests across 7 files; new `session-lookup` cover for row-key parsing,
+  two-character titles, prefix collisions, and row text with trailing chrome.
+
 ## 0.2.0 — 2026-10-22
 
 ### Added

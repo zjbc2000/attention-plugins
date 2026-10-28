@@ -27,6 +27,7 @@ import { mainlineStore } from './mainline-store.js'
 import { MainlineComposerButton } from './mainline-composer-button.js'
 import { MainlineMenuItem } from './mainline-menu-item.js'
 import { installSidebarBadge } from './sidebar-badge.js'
+import { resolveSessionByTitle, type SessionTitleRow } from './session-lookup.js'
 
 export const name = 'attention-plugins'
 
@@ -197,17 +198,10 @@ export function apply(ctx: Context, config: Config) {
   ctx.effect(() => {
     const sessionsSvc = (ctx as any).sessions
     const listOf = () => sessionsSvc?.list?.getSnapshot?.()
-    const resolveByTitle = (title: string): SessionId | null => {
+    const resolveByTitle = (text: string): SessionId | null => {
       const snap = listOf()?.byId
-      if (!snap || !title) return null
-      let partial: SessionId | null = null
-      for (const row of Object.values(snap) as any[]) {
-        const dt: string = row?.displayTitle || row?.title || ''
-        if (!dt || dt.length < 4) continue
-        if (title === dt) return row.id
-        if (partial === null && title.includes(dt)) partial = row.id
-      }
-      return partial
+      if (!snap) return null
+      return resolveSessionByTitle(text, Object.values(snap) as SessionTitleRow[])
     }
     return installSidebarBadge(resolveByTitle)
   })

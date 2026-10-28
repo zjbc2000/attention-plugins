@@ -10,12 +10,13 @@
  * may carry the badge at once.
  */
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
+import { MAINLINE_RESCAN_EVENT } from './events.js'
 import { mainlineStore } from './mainline-store.js'
 import { loadSettings } from './settings.js'
 import { PRIMOGEM_URI } from './primogem-uri.js'
+import { sessionIdFromAttribute, sessionIdFromRowKey } from './session-lookup.js'
 
 const BADGE_ATTR = 'data-att-mainline-star'
-const RESCAN_EVENT = 'att-mainline-rescan'
 
 /**
  * The official Primogem art, inlined as a data URI — the real texture, not an
@@ -42,7 +43,14 @@ function starNode(sessionId: SessionId): HTMLSpanElement {
   return span
 }
 
+/**
+ * Session rows are selected by their `data-row-key` prefix first: it is the
+ * documented machine hook and survives class-name hashing, so a DSH release
+ * that renames `sessionRow` cannot silently empty the scan.
+ */
 function findRows(column: Element): HTMLElement[] {
+  const keyed = Array.from(column.querySelectorAll<HTMLElement>('[data-row-key^="session:"]'))
+  if (keyed.length > 0) return keyed
   const rows = Array.from(column.querySelectorAll<HTMLElement>('[class*="sessionRow" i]'))
   if (rows.length > 0) return rows
   return Array.from(column.querySelectorAll<HTMLElement>('[class*="rowActions" i]'))
@@ -50,19 +58,35 @@ function findRows(column: Element): HTMLElement[] {
     .filter((el): el is HTMLElement => el !== null)
 }
 
+/**
+ * The row's own title text, without the sibling chrome (relative time, pin,
+ * overflow menu) that a `textContent` sweep would concatenate on. Returns ''
+ * when no title element can be isolated so callers can fall back to the whole
+ * row text.
+ */
+function rowTitleText(row: HTMLElement): string {
+  const candidates = Array.from(row.querySelectorAll<HTMLElement>('[class*="title" i]'))
+  for (const el of candidates) {
+    if (el.hasAttribute(BADGE_ATTR) || el.closest(`[${BADGE_ATTR}]`) !== null) continue
+    const text = (el.textContent || '').trim()
+    if (text !== '') return text
+  }
+  return ''
+}
+
 function rowIdOf(row: HTMLElement, resolveByTitle: (title: string) => SessionId | null): SessionId | null {
-  // 1) explicit data attributes carrying a session-id-like value
+  // 1) the live session id DSH writes on the row itself (authoritative)
+  const fromKey = sessionIdFromRowKey(row.getAttribute('data-row-key'))
+  if (fromKey !== null) return fromKey
+  // 2) older hosts: any data-* attribute carrying a session-id-like value
   for (const attr of Array.from(row.attributes)) {
-    if (
-      attr.name.startsWith('data-') &&
-      /session|(^|-)id($|-)/i.test(attr.name) &&
-      /^[0-9a-f-]{10,}$/i.test(attr.value)
-    ) {
-      return attr.value as SessionId
+    if (attr.name.startsWith('data-') && /session|(^|-)id($|-)/i.test(attr.name)) {
+      const id = sessionIdFromAttribute(attr.value)
+      if (id !== null) return id
     }
   }
-  // 2) fallback: match the row text against known session display titles
-  return resolveByTitle((row.textContent || '').trim())
+  // 3) last resort: match the row label against known session titles
+  return resolveByTitle(rowTitleText(row) || (row.textContent || '').trim())
 }
 
 function removeAll(): void {
@@ -114,13 +138,13 @@ export function installSidebarBadge(resolveByTitle: (title: string) => SessionId
   const observer = new MutationObserver(schedule)
   observer.observe(document.body, { childList: true, subtree: true })
   const offStore = mainlineStore.subscribe(schedule)
-  window.addEventListener(RESCAN_EVENT, schedule)
+  window.addEventListener(MAINLINE_RESCAN_EVENT, schedule)
 
   schedule()
   return () => {
     observer.disconnect()
     offStore()
-    window.removeEventListener(RESCAN_EVENT, schedule)
+    window.removeEventListener(MAINLINE_RESCAN_EVENT, schedule)
     removeAll()
   }
 }

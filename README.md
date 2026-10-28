@@ -10,8 +10,12 @@
   <a href="https://github.com/zjbc2000/attention-plugins/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/zjbc2000/attention-plugins?style=social"></a>
   <a href="https://github.com/zjbc2000/attention-plugins/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/zjbc2000/attention-plugins/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
-  <a href="./tests/"><img alt="Tests" src="https://img.shields.io/badge/tests-92%20passed-brightgreen"></a>
+  <a href="./tests/"><img alt="Tests" src="https://img.shields.io/badge/tests-105%20passed-brightgreen"></a>
   <img alt="DSH" src="https://img.shields.io/badge/DSH-tested%200.2.1--rc.2-blue">
+</p>
+
+<p align="center">
+  <code>dsh plugin --profile web add attention-plugins &amp;&amp; dsh web</code>
 </p>
 
 <p align="center"><a href="#中文">中文</a> · <a href="#english">English</a></p>
