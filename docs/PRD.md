@@ -1,5 +1,9 @@
 # Attention Plugins - 产品需求文档 (PRD)
 
+> **2026-11-04 变更**：`sidelineMode`（支线通知方式）已删除，并入三档 `mainlineMode`：
+> `mainline` = 标记主线即响 + 未标记汇总一次；`balanced` = 全部逐个响；`silent` = 完成全不响。
+> 本文第 2 节「功能 2」、第 4 节设置表与第 7 节代码摘录仍描述 0.2.x 的旧两设置模型，保留作为设计沿革，勿按此实现。
+
 ## 一、产品概述
 
 **产品名称**：Attention Plugins (注意力插件)  

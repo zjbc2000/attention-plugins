@@ -1,10 +1,14 @@
 /**
  * Additional tests for main-line/side-line logic with complex scenarios.
  * Ensures the new logic doesn't break DSH's original functionality.
+ *
+ * Defaults here are `mainlineMode: 'mainline'` (pooling); the balanced group
+ * switches the mode on the remote-event (`observeStatus`) path.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { NotificationEngine, type NotificationEvent, type NotificationEnginePorts, type SessionDetail } from '../src/client/engine'
-import type { SidelineMode } from '../src/settings'
+import type { MainlineMode } from '../src/settings'
+import { decideAlert } from '../src/policy'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 
 /** Mock sessions list state. */
@@ -32,20 +36,39 @@ function mockDetail(failed: boolean = false): SessionDetail {
 describe('NotificationEngine - Main-line/Side-line Advanced', () => {
   let emittedEvents: NotificationEvent[]
   let mainlineSessionId: string | null
-  let sidelineMode: SidelineMode
+  let mainlineMode: MainlineMode
+  let mutedSessionId: string | null
+  let waitForSubagents: boolean
+  let childrenRunning: Map<string, number>
   let engine: NotificationEngine
   let ports: NotificationEnginePorts
+
+  /** "All tasks" wave summaries. */
+  const aggregates = () => emittedEvents.filter(e => e.title === 'All tasks')
+  /** Alerts that belong to a single session. */
+  const individual = () => emittedEvents.filter(e => e.title !== 'All tasks')
 
   beforeEach(() => {
     emittedEvents = []
     mainlineSessionId = null
-    sidelineMode = 'batch' // these cases describe the aggregating mode
+    mainlineMode = 'mainline' // these cases describe the aggregating mode
+    mutedSessionId = null
+    waitForSubagents = false
+    childrenRunning = new Map()
 
     ports = {
       titleOf: (id) => `Session ${id}`,
       detailOf: (id) => mockDetail(),
+      alertAction: (kind, id) => decideAlert({
+        kind,
+        markedMainline: id === mainlineSessionId,
+        mainlineMode,
+        muted: id === mutedSessionId,
+      }),
+      runningChildren: (id) => childrenRunning.get(id) ?? 0,
+      waitForSubagents: () => waitForSubagents,
       isMainline: (id) => id === mainlineSessionId,
-      sidelineMode: () => sidelineMode,
+      aggregateEnabled: () => mainlineMode === 'mainline',
       emit: (event) => emittedEvents.push(event),
       settle: () => Promise.resolve(),
     }
@@ -74,7 +97,7 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // A should NOT notify (it's no longer main-line)
+      // A is pooled, so nothing rings yet.
       expect(emittedEvents).toHaveLength(0)
 
       // B completes (it's main-line now)
@@ -85,10 +108,10 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // B alerts as main-line
-      expect(emittedEvents.length).toBeGreaterThanOrEqual(1)
-      const mainEvent = emittedEvents.find(e => e.sessionId === 'B')
-      expect(mainEvent).toBeDefined()
+      // B alerts as main-line, and the wave it closed pays out the pooled A
+      // through exactly one summary.
+      expect(individual().map(e => e.sessionId)).toEqual(['B'])
+      expect(aggregates()).toHaveLength(1)
     })
 
     it('should handle the main-line marker moving between sessions', async () => {
@@ -151,8 +174,11 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // Side-line completes (no crash, no main-line event for GHOST)
+      // Side-line completes (no crash, no main-line event for GHOST). The
+      // ghost marker belongs to nobody, so both A and B are pooled into the
+      // one wave summary.
       expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].title).toBe('All tasks')
       expect(emittedEvents[0].detail).toContain('All side-line')
     })
   })
@@ -214,6 +240,7 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
       // Side-line fires once
       expect(emittedEvents).toHaveLength(1)
       expect(emittedEvents[0].kind).toBe('completed')
+      expect(emittedEvents[0].title).toBe('All tasks')
     })
 
     it('should handle interleaved start/stop cycles', async () => {
@@ -259,8 +286,9 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // Side-line fires for wave 2
+      // Exactly one summary for wave 2
       expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].title).toBe('All tasks')
     })
 
     it('should NOT fire side-line when going from "no sessions" to "no sessions"', async () => {
@@ -308,10 +336,11 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // Only main-line event, no duplicate side-line
+      // Only the main-line event: nothing was pooled, so no summary.
       expect(emittedEvents).toHaveLength(1)
       expect(emittedEvents[0].sessionId).toBe('MAIN')
       expect(emittedEvents[0].kind).toBe('completed')
+      expect(aggregates()).toHaveLength(0)
     })
 
     it('should NOT suppress side-line when main-line completes but others still running', async () => {
@@ -347,12 +376,12 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // Side-line fires (no main-line this time)
+      // Side-line fires exactly once (no main-line this time)
       expect(emittedEvents).toHaveLength(1)
       expect(emittedEvents[0].detail).toContain('All side-line')
     })
 
-    it('should suppress side-line only in the SAME observe() call', async () => {
+    it('should emit one side-line summary when the pooled wave ends later', async () => {
       mainlineSessionId = 'MAIN'
 
       engine.seed(mockSessionList([
@@ -370,7 +399,8 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
       expect(emittedEvents).toHaveLength(1) // Main-line
       emittedEvents.length = 0
 
-      // A completes (different observe call → no suppression)
+      // A completes in a later call: it closes the wave, so the summary goes
+      // out then — exactly once, never duplicated by the all-idle edge.
       engine.observe(mockSessionList([
         { id: 'MAIN', running: false },
         { id: 'A', running: false },
@@ -378,14 +408,14 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // Side-line fires (not suppressed, different call)
       expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].title).toBe('All tasks')
       expect(emittedEvents[0].detail).toContain('All side-line')
     })
   })
 
   describe('Doesn\'t break DSH original behavior', () => {
-    it('should work without any main-line set (batch mode)', async () => {
+    it('should work without any main-line set (mainline mode)', async () => {
       // No main-line set
       mainlineSessionId = null
 
@@ -411,7 +441,7 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // Side-line fires
+      // Side-line fires once
       expect(emittedEvents).toHaveLength(1)
     })
 
@@ -475,15 +505,16 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       // Side-line fires for B
       expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].title).toBe('All tasks')
     })
   })
 
-  describe('Per-session mode on the remote event path (0.1.7 wiring)', () => {
+  describe('Balanced mode on the remote event path (0.1.7 wiring)', () => {
     // The browser wiring feeds observeStatus(), not observe(): these cover the
     // path production actually uses, where the aggregate edge is computed from
     // the accumulated prevRunning map rather than from a snapshot.
     beforeEach(() => {
-      sidelineMode = 'per-session'
+      mainlineMode = 'balanced'
     })
 
     it('should alert each side-line session from api-session/status events', async () => {
@@ -521,8 +552,8 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
       expect(emittedEvents.every(e => e.title.startsWith('Session '))).toBe(true)
     })
 
-    it('should still aggregate in batch mode on the same path', async () => {
-      sidelineMode = 'batch'
+    it('should still aggregate in mainline mode on the same path', async () => {
+      mainlineMode = 'mainline'
 
       engine.observeAdded({ id: 'A', running: true })
       engine.observeAdded({ id: 'B', running: true })
@@ -586,6 +617,7 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       // Side-line fires once
       expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].title).toBe('All tasks')
     })
 
     it('should handle rapid main-line switching', async () => {
@@ -611,10 +643,11 @@ describe('NotificationEngine - Main-line/Side-line Advanced', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // Main-line fires (A was last main-line)
-      expect(emittedEvents.length).toBeGreaterThanOrEqual(1)
+      // Main-line fires (A was last main-line) and B is paid out through the
+      // wave's single summary.
       const mainEvent = emittedEvents.find(e => e.sessionId === 'A')
       expect(mainEvent).toBeDefined()
+      expect(aggregates()).toHaveLength(1)
     })
   })
 })

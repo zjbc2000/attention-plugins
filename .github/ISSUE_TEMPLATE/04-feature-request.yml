@@ -1,0 +1,57 @@
+name: "功能建议 / Feature request"
+description: "想要新的通知行为、设置项或集成方式时用这个表单。"
+title: "[enhancement] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        这个插件的边界是**任务分级通知**（主线即时、支线可汇总、提问/权限即时），所以请尽量从「你在什么工作流里、被什么打断/漏掉」讲起，而不是只写想要一个开关。
+
+        提之前先搜一下现有 issue，避免重复。
+  - type: textarea
+    id: scenario
+    attributes:
+      label: "使用场景"
+      description: "几个会话并行？哪些是主线？现在的通知在什么时候打扰你、或漏掉了什么？"
+      placeholder: |
+        我通常同时开 4–5 个会话：1 个主线在等结果，3 个支线跑长任务。
+        现在支线在 batch 模式下全部结束才响，但我希望某个特定支线失败时立刻提示。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: "期望行为"
+      description: "具体到你希望看到什么、听到什么、什么时候发生；有边界条件也写上"
+      placeholder: |
+        被标记为「关键支线」的会话失败时，即使处于 batch 模式也立即提醒；
+        非关键支线的失败仍并入汇总。
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: "现在怎么绕过（可选）"
+      description: "例如：把该会话也标成主线、关掉 batch、手动看侧栏"
+    validations:
+      required: false
+  - type: dropdown
+    id: willingness
+    attributes:
+      label: "是否愿意提 PR（可选）"
+      options:
+        - "愿意，可以自己实现"
+        - "愿意，但需要指路"
+        - "只提需求"
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: "确认"
+      options:
+        - label: "我搜索过现有 issue，没有重复"
+        - label: "这个需求不涉及采集会话内容或上传数据"
+    validations:
+      required: true

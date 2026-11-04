@@ -1,0 +1,102 @@
+name: "安装失败 / Install failed"
+description: "dsh plugin add 失败、装完启动不了、插件找不到时用这个表单。"
+title: "[install] "
+labels: ["install"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        谢谢反馈。**先花 30 秒自查，能省一轮来回：**
+
+        1. 安装命令是否为 `dsh plugin --profile web add attention-plugins`（profile 写错是最常见的失败原因）。
+        2. `dsh --version` 与 `node -v` 的输出（下面会要求填）。
+        3. 能否打开 <https://registry.npmjs.org/attention-plugins>——打不开就是网络/镜像/代理问题，不是插件问题。
+        4. 也可以用隔离环境复现，避免动到自己的 profile：
+
+           ```bash
+           bash scripts/smoke-install.sh --dry-run   # 先看它会做什么
+           bash scripts/smoke-install.sh             # 临时 DSH_HOME 里安装 + 断言，退出即清理
+           ```
+
+        > 粘贴日志前请删除其中的 token、cookie、代理账号、私有路径。不要贴 `~/.dsh` 里与安装无关的内容。
+  - type: input
+    id: dsh-version
+    attributes:
+      label: "DSH 版本"
+      description: "`dsh --version` 的输出"
+      placeholder: "0.2.1-rc.4"
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: "插件版本"
+      description: "`npm view attention-plugins version`，或安装时报错里的版本号；源码安装请写 git commit"
+      placeholder: "0.2.1"
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: "Node 版本"
+      description: "`node -v` 的输出（DSH 要求 Node >= 20）"
+      placeholder: "v22.14.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: "操作系统"
+      options:
+        - "macOS"
+        - "Linux"
+        - "Windows（WSL）"
+        - "Windows（原生）"
+        - "其他"
+    validations:
+      required: true
+  - type: input
+    id: install-command
+    attributes:
+      label: "安装命令"
+      description: "原样粘贴你执行的命令"
+      placeholder: "dsh plugin --profile web add attention-plugins"
+    validations:
+      required: true
+  - type: dropdown
+    id: registry
+    attributes:
+      label: "下载源 / 网络环境"
+      options:
+        - "npm 官方 registry（registry.npmjs.org）"
+        - "镜像（npmmirror 等）"
+        - "公司代理 / 私有 registry"
+        - "不确定"
+    validations:
+      required: true
+  - type: textarea
+    id: error-output
+    attributes:
+      label: "完整报错"
+      description: "从失败命令的第一行贴到最后一行（已删除敏感信息）"
+      render: shell
+      placeholder: |
+        $ dsh plugin --profile web add attention-plugins
+        ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: tried
+    attributes:
+      label: "已尝试过的排查（可选）"
+      options:
+        - label: "在全新的 profile（或临时 DSH_HOME）里复现过"
+        - label: "跑过 `bash scripts/smoke-install.sh` 并失败"
+        - label: "确认能正常访问 registry.npmjs.org"
+  - type: textarea
+    id: extra
+    attributes:
+      label: "补充信息（可选）"
+      description: "例如：同一台机器上其他插件能否安装、是否刚从旧版本升级"
+    validations:
+      required: false

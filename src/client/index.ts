@@ -11,21 +11,23 @@
  *   the same wire the official api-session-controller consumes. Titles/details
  *   come from the `sessions` service snapshot (sessions.list.getSnapshot()).
  *
- * Marking surfaces: composer tool-row toggle + sidebar row "..." menu item +
- * persistent sidebar badge (B2, experimental). The conversation header button
- * was removed at the user's request.
+ * Alert policy (who may interrupt whom) lives in ../policy.ts; this file only
+ * wires it to the browser: services, settings, sound, notifications, and the
+ * mainline/mute marking surfaces.
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import { NotificationEngine, type SessionDetail } from './engine.js'
 import { playSound } from './sounds.js'
 import { showNotification } from './notification.js'
-import { loadSettings, saveSettings, AttentionSettingsSection } from './settings.js'
-import { isMainlineSession } from '../settings.js'
+import { loadSettings, AttentionSettingsSection } from './settings.js'
+import { isMainlineSession, isMutedSession } from '../settings.js'
+import { decideAlert, shouldAlertCurrentSession, countRunningChildren } from '../policy.js'
 import { locales, resolveLocaleCode } from './locales.js'
 import { mainlineStore } from './mainline-store.js'
 import { MainlineComposerButton } from './mainline-composer-button.js'
 import { MainlineMenuItem } from './mainline-menu-item.js'
+import { MuteMenuItem } from './mute-menu-item.js'
 import { installSidebarBadge } from './sidebar-badge.js'
 import { resolveSessionByTitle, type SessionTitleRow } from './session-lookup.js'
 
@@ -33,7 +35,7 @@ export const name = 'attention-plugins'
 
 export interface Config {}
 
-/** The session the user is currently viewing (best effort, for notifyCurrent gating). */
+/** The session the user is currently viewing (best effort, for current-session gating). */
 const viewTracker: { current: SessionId | null } = { current: null }
 
 function translate(key: string): string {
@@ -54,10 +56,31 @@ function mainlineFace() {
   }
 }
 
+/** The face the session menu's mute item receives. */
+function muteFace() {
+  return { t: translate }
+}
+
 export const inject = ['slots', 'remote', 'sessions']
 
 export function apply(ctx: Context, config: Config) {
   const slots = (ctx as any).slots
+
+  /**
+   * Open one session in the workspace view. `uiWorkspace` is not in `inject`
+   * (older hosts do not ship it), so this resolves lazily at click time and
+   * degrades to a plain focus when the service is absent.
+   */
+  const openSession = (sessionId: string): void => {
+    try {
+      const workspace = typeof (ctx as any).get === 'function'
+        ? (ctx as any).get('uiWorkspace')
+        : (ctx as any).uiWorkspace
+      if (workspace?.openSession) workspace.openSession(sessionId as SessionId)
+    } catch (err) {
+      console.warn('[attention-plugins] cannot open session:', err)
+    }
+  }
 
   // ── Settings panel (settings.section slot) ────────────────────────────────
   if (slots?.inject) {
@@ -108,6 +131,22 @@ export function apply(ctx: Context, config: Config) {
     })
   }
 
+  // ── 🔇 mute item: same menu, right below the mainline item ────────────────
+  if (slots?.inject) {
+    ctx.effect(() => {
+      const dispose = slots.inject('sidebar.workspaces.session.menu.item', () =>
+        slots.register({
+          name: 'sidebar.workspaces.session.menu.item',
+          id: 'attention-mute-menu',
+          order: 160,
+          label: () => '静音',
+          inject: muteFace,
+        }, MuteMenuItem)
+      )
+      return () => dispose?.()
+    })
+  }
+
   // ── Notifications: remote session events (0.1.7 wiring) ──────────────────
   ctx.effect(() => {
     const sessionsSvc = (ctx as any).sessions
@@ -128,38 +167,54 @@ export function apply(ctx: Context, config: Config) {
           finalText: '',
         }
       },
-      isMainline: (sessionId: SessionId) => {
+      // Who may interrupt: read per event so flipping a setting applies at once.
+      alertAction: (kind, sessionId) => {
+        const settings = loadSettings()
+        return decideAlert({
+          kind,
+          markedMainline: isMainlineSession(sessionId, mainlineStore.getSnapshot(), settings.mainlineMode),
+          mainlineMode: settings.mainlineMode,
+          muted: isMutedSession(sessionId, settings.mutedSessionIds),
+        })
+      },
+      // A run with running subagents is not finished: defer, then flush.
+      runningChildren: (sessionId) => {
+        const snap = listOf()
+        const rows = snap?.byId ? Object.values(snap.byId) : []
+        return countRunningChildren(sessionId, rows as Array<{ parentSessionId?: string; running?: boolean }>)
+      },
+      waitForSubagents: () => loadSettings().waitForSubagents,
+      isMainline: (sessionId) => {
         const settings = loadSettings()
         return isMainlineSession(sessionId, mainlineStore.getSnapshot(), settings.mainlineMode)
       },
-      // Read per completion so flipping the setting applies immediately.
-      sidelineMode: () => loadSettings().sidelineMode,
+      // One "All tasks" chime is expected in mainline mode only: balanced
+      // alerts every session on its own, silent alerts nothing.
+      aggregateEnabled: () => loadSettings().mainlineMode === 'mainline',
       emit: (event) => {
         const settings = loadSettings()
         const typeSettings = settings.types[event.kind]
         if (!typeSettings.enabled) return
 
-        // Gating: quiet the currently viewed session by default
-        const isCurrent = viewTracker.current === event.sessionId
-        const isHidden = document.hidden
-        if (isCurrent && !isHidden && !settings.notifyCurrent) return
+        // Current-session gate: three modes; default stays quiet while you read.
+        if (viewTracker.current === event.sessionId
+          && !shouldAlertCurrentSession(settings.currentSessionMode, {
+            hidden: document.hidden,
+            focused: document.hasFocus(),
+          })) return
 
-        // Play sound
-        if (settings.soundEnabled && typeSettings.sound !== 'none') {
-          playSound(typeSettings.sound, settings.volume)
+        const customUrl = typeSettings.customAudio?.dataUrl ?? null
+        if (settings.soundEnabled && (customUrl !== null || typeSettings.sound !== 'none')) {
+          playSound(typeSettings.sound, settings.volume, customUrl)
         }
 
-        // Show browser notification when away
         if (settings.browserEnabled) {
-          const shouldNotify = isHidden || !isCurrent || settings.notifyCurrent
-          if (shouldNotify) {
-            const t = (key: keyof typeof locales['en']) => locales[resolveLocaleCode()][key]
-            const title = t(`notification.${event.kind}.title` as any) || event.kind
-            const body = t(`notification.${event.kind}.body` as any)
-              ?.replace('{title}', event.title)
-              ?.replace('{detail}', event.detail) || event.detail
-            showNotification(title, body)
-          }
+          const t = (key: string) => locales[resolveLocaleCode()][key as keyof typeof locales['en']]
+          const title = t(`notification.${event.kind}.title`) || event.kind
+          const body = (t(`notification.${event.kind}.body`) || '')
+            .replace('{title}', event.title)
+            .replace('{detail}', event.detail)
+          showNotification(event.kind, event.sessionId, title, body || event.detail, openSession)
         }
       },
       settle: () => new Promise(resolve => setTimeout(resolve, 100)),

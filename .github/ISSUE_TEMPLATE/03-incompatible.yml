@@ -1,0 +1,84 @@
+name: "版本不兼容 / Incompatible"
+description: "装了插件后 DSH 启动报错、插件不加载、设置面板不出现，疑似版本不匹配。"
+title: "[compatibility] "
+labels: ["compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本插件的 `engines.dsh` 声明为 `>=0.1.7`，但**只有 DSH 0.2.1-rc.2 是作者验证过的组合**；其余版本记录为「未验证」，见 [docs/COMPATIBILITY.md](https://github.com/zjbc2000/attention-plugins/blob/main/docs/COMPATIBILITY.md)。
+
+        反馈前请先确认：**DSH 宿主进程的版本**与安装包的版本是否一致——升级 DSH 后旧进程不会自感知，重启 `dsh web` 常常就能解决。
+  - type: input
+    id: dsh-version
+    attributes:
+      label: "DSH 版本"
+      description: "版本号（下面还要 `dsh --version` 的完整输出）"
+      placeholder: "0.2.1-rc.4"
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: "插件版本"
+      description: "`npm view attention-plugins version`，或 Settings → Attention 面板顶部显示的版本"
+      placeholder: "0.2.1"
+    validations:
+      required: true
+  - type: textarea
+    id: dsh-version-output
+    attributes:
+      label: "`dsh --version` 完整输出"
+      description: "原样粘贴（多行也全部贴上，不要只截版本号）"
+      render: shell
+      placeholder: |
+        $ dsh --version
+        0.2.1-rc.4
+    validations:
+      required: true
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: "现象"
+      options:
+        - "dsh web 启动直接报错 / 白屏"
+        - "启动日志提示插件未激活（did not activate / cannot resolve）"
+        - "能启动，但 Settings 里没有 Attention 面板"
+        - "面板在，但功能异常（标记主线 / 试听 / 通知）"
+        - "其他（在补充信息里说明）"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-source
+    attributes:
+      label: "安装来源"
+      options:
+        - "npm（dsh plugin add attention-plugins）"
+        - "GitHub Release 的 .tgz"
+        - "源码 link: 安装"
+        - "不确定"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: "启动日志 / 报错"
+      description: "`dsh web` 终端输出、浏览器 Console 或 Network 中与插件相关的行；已删除 token"
+      render: shell
+    validations:
+      required: true
+  - type: checkboxes
+    id: tried
+    attributes:
+      label: "已尝试过的排查（可选）"
+      options:
+        - label: "重启过 `dsh web`（不是只刷新页面）"
+        - label: "在全新 profile / 临时 DSH_HOME 里复现过"
+        - label: "看过 docs/COMPATIBILITY.md 的矩阵"
+  - type: textarea
+    id: extra
+    attributes:
+      label: "补充信息（可选）"
+      description: "例如升级前后的版本组合、是否同时装了其他通知类插件"
+    validations:
+      required: false

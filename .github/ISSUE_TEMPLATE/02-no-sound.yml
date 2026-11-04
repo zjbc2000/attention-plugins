@@ -1,0 +1,110 @@
+name: "没有声音 / No sound"
+description: "任务完成/失败/提问时听不到提示音，或收不到浏览器通知。"
+title: "[sound] "
+labels: ["sound"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **先确认这三条**（大多数「没声音」都是它们造成的）：
+
+        1. **先点一次 Settings → Attention 里的 ▶ 试听。** 浏览器要求音频由用户手势解锁；没点过试听，首次自动播放会被静默拦截。
+        2. **对应事件类型是开着的**（完成 / 失败 / 提问 / 权限请求各自独立），音量不是 0。
+        3. **浏览器通知**是另一套权限：需要授权，且默认只在后台标签页弹出（页面在前台时不弹）。
+
+        更多见 [docs/COMPATIBILITY.md 的「已知前置条件」](https://github.com/zjbc2000/attention-plugins/blob/main/docs/COMPATIBILITY.md)。
+  - type: dropdown
+    id: tried-preview
+    attributes:
+      label: "是否点过 ▶ 试听，且试听本身有声音？"
+      options:
+        - "点过，试听有声音（但任务事件没声音）"
+        - "点过，试听也没有声音"
+        - "没点过 / 找不到试听按钮"
+    validations:
+      required: true
+  - type: dropdown
+    id: affected-events
+    attributes:
+      label: "哪类事件没声音？"
+      options:
+        - "全部事件都没声音"
+        - "完成"
+        - "失败"
+        - "提问"
+        - "权限请求"
+        - "不确定"
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: "浏览器与版本"
+      description: "例如 Chrome 141 / Safari 26 / Edge 141"
+      placeholder: "Chrome 141.0.7390.55"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: "操作系统"
+      options:
+        - "macOS"
+        - "Linux"
+        - "Windows（WSL）"
+        - "Windows（原生）"
+        - "其他"
+    validations:
+      required: true
+  - type: dropdown
+    id: volume
+    attributes:
+      label: "音量状态"
+      description: "系统音量与标签页音量分别是？"
+      options:
+        - "两者都未静音，且能听到其它网页的声音"
+        - "系统被静音 / 音量为 0"
+        - "当前标签页被静音"
+        - "不确定"
+    validations:
+      required: true
+  - type: dropdown
+    id: bluetooth
+    attributes:
+      label: "是否有蓝牙 / 外接音频设备切换"
+      description: "耳机、蓝牙音箱、显示器音频都可能让声音「跑到别处」"
+      options:
+        - "使用蓝牙或外接设备，且中途切换过输出设备"
+        - "使用蓝牙或外接设备，但没有切换过"
+        - "仅内置扬声器"
+        - "不确定"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: "复现步骤"
+      description: "从打开页面到预期发声的那一步，按顺序写"
+      placeholder: |
+        1. dsh web 启动，打开 Settings → Attention
+        2. 点 ▶ 试听（有/无声音）
+        3. 标记会话 A 为主线，跑一个任务直到完成
+        4. 没有听到完成提示音
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: "浏览器 Console 报错（可选）"
+      description: "F12 → Console，粘贴与 audio / notification 相关的行；无报错可写「无」"
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: tried
+    attributes:
+      label: "已尝试过的排查（可选）"
+      options:
+        - label: "点过 ▶ 试听"
+        - label: "刷新过页面 / 重启过 dsh web"
+        - label: "在另一个浏览器里试过"

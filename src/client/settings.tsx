@@ -2,9 +2,17 @@
  * Settings panel UI for attention-plugins.
  * Registers an "Attention" section in DSH Settings using the settings.section slot.
  */
-import React, { useState, useCallback, useEffect } from 'react'
-import type { AttentionSettings, SoundId, NotificationType, SidelineMode, MainlineMode } from '../settings.js'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
+import type {
+  AttentionSettings,
+  SoundId,
+  NotificationType,
+  MainlineMode,
+  CurrentSessionMode,
+  StoredAudio,
+} from '../settings.js'
 import { defaultSettings, normalizeSettings } from '../settings.js'
+import { readAudioFile, formatBytes, MAX_AUDIO_BYTES, type AudioRejectReason } from './custom-audio.js'
 import { playSound } from './sounds.js'
 import { requestPermission, canNotify, showNotification } from './notification.js'
 import { locales, resolveLocaleCode } from './locales.js'
@@ -12,6 +20,7 @@ import { attentionCss } from './effects.js'
 import { AttentionFigure } from './attention-figure.js'
 import { SparkStar } from './spark-star.js'
 import { requestSidebarBadgeRescan } from './events.js'
+import { PluginMetaBar } from './meta-bar.js'
 
 const STORAGE_KEY = 'attention-plugins:config'
 
@@ -44,28 +53,64 @@ interface SettingsSectionProps {
 
 const eventTypes: NotificationType[] = ['completed', 'failed', 'question', 'permission']
 
-/** Side-line alert modes, in the order they are offered (default first). */
-const SIDELINE_OPTIONS: ReadonlyArray<{
-  mode: SidelineMode
-  labelKey: keyof typeof locales['en']
-}> = [
-  { mode: 'per-session', labelKey: 'settings.sideline.perSession' },
-  { mode: 'batch', labelKey: 'settings.sideline.batch' },
-]
-
 /** Task modes, in the order they are offered (the default first). */
 const MAINLINE_MODE_OPTIONS: ReadonlyArray<{
   mode: MainlineMode
   labelKey: keyof typeof locales['en']
+  descriptionKey?: keyof typeof locales['en']
 }> = [
   { mode: 'mainline', labelKey: 'settings.mode.mainline' },
   { mode: 'balanced', labelKey: 'settings.mode.balanced' },
+  {
+    mode: 'silent',
+    labelKey: 'settings.mainlineMode.silent.label',
+    descriptionKey: 'settings.mainlineMode.silent.description',
+  },
 ]
+
+/** When alerts may interrupt the session the user is looking at (default first). */
+const CURRENT_SESSION_OPTIONS: ReadonlyArray<{
+  mode: CurrentSessionMode
+  labelKey: keyof typeof locales['en']
+  descriptionKey: keyof typeof locales['en']
+}> = [
+  {
+    mode: 'hidden',
+    labelKey: 'settings.currentSession.hidden.label',
+    descriptionKey: 'settings.currentSession.hidden.description',
+  },
+  {
+    mode: 'unfocused',
+    labelKey: 'settings.currentSession.unfocused.label',
+    descriptionKey: 'settings.currentSession.unfocused.description',
+  },
+  {
+    mode: 'always',
+    labelKey: 'settings.currentSession.always.label',
+    descriptionKey: 'settings.currentSession.always.description',
+  },
+]
+
+/** Accepted audio MIME types for the custom-sound picker. */
+const AUDIO_ACCEPT = 'audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/x-wav,audio/wave'
+
+/** Shared look for the small secondary buttons in the event cards. */
+const SMALL_BUTTON_STYLE: React.CSSProperties = {
+  padding: '4px 12px',
+  borderRadius: '4px',
+  border: '1px solid var(--dsw-alias-border-l3)',
+  background: 'var(--dsw-alias-interactive-bg-hover)',
+  color: 'var(--dsw-alias-label-primary)',
+  cursor: 'pointer',
+  fontSize: '12px',
+}
 
 /** Attention settings section component. */
 export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps) {
   const [settings, setSettings] = useState<AttentionSettings>(loadSettings)
   const [permissionState, setPermissionState] = useState<NotificationPermission>('default')
+  const [audioError, setAudioError] = useState<{ kind: NotificationType; reason: AudioRejectReason } | null>(null)
+  const audioInputRefs = useRef<Partial<Record<NotificationType, HTMLInputElement | null>>>({})
   
   const localeCode = resolveLocaleCode(locale)
   const t = useCallback((key: keyof typeof locales['en']) => locales[localeCode][key], [localeCode])
@@ -92,8 +137,8 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
   // Update event type setting
   const updateEventType = useCallback((
     eventType: NotificationType,
-    key: 'enabled' | 'sound',
-    value: boolean | SoundId
+    key: 'enabled' | 'sound' | 'customAudio',
+    value: boolean | SoundId | StoredAudio | null
   ) => {
     setSettings(prev => {
       const updated = {
@@ -110,6 +155,23 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
       return updated
     })
   }, [])
+
+  // Validate and store a picked audio file as this event type's custom sound
+  const handleAudioPicked = useCallback(async (eventType: NotificationType, file: File) => {
+    setAudioError(null)
+    const result = await readAudioFile(file)
+    if (result.ok) {
+      updateEventType(eventType, 'customAudio', result.audio)
+    } else {
+      setAudioError({ kind: eventType, reason: result.reason })
+    }
+  }, [updateEventType])
+
+  // Drop the custom sound and its error message for one event type
+  const handleClearAudio = useCallback((eventType: NotificationType) => {
+    setAudioError(null)
+    updateEventType(eventType, 'customAudio', null)
+  }, [updateEventType])
   
   // Handle browser notification enable
   const handleEnableBrowserNotifications = useCallback(async () => {
@@ -126,6 +188,8 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
   const handleTestNotification = useCallback(() => {
     if (canNotify()) {
       showNotification(
+        'completed',
+        'attention-plugins-test',
         t('notification.test.title'),
         t('notification.test.body')
       )
@@ -153,7 +217,10 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
         <AttentionFigure />
         <span className="attention-rule" aria-hidden="true" />
       </div>
-      
+
+      {/* Repo / version / issues / update check */}
+      <PluginMetaBar t={t} />
+
       {/* Sound Notifications */}
       <div style={{ marginBottom: '24px' }}>
         <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
@@ -222,39 +289,103 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
                 </div>
                 
                 {typeSettings.enabled && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '24px' }}>
-                    <select
-                      value={typeSettings.sound}
-                      onChange={e => updateEventType(eventType, 'sound', e.target.value as SoundId)}
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        border: '1px solid var(--dsw-alias-border-l3)',
-                        background: 'var(--dsw-alias-bg-layer-1)',
-                        color: 'var(--dsw-alias-label-primary)',
-                      }}
-                    >
-                      <option value="chime">{t('sound.chime')}</option>
-                      <option value="success">{t('sound.success')}</option>
-                      <option value="subtle">{t('sound.subtle')}</option>
-                      <option value="none">{t('sound.none')}</option>
-                    </select>
-                    <button
-                      className="attention-test-btn"
-                      onClick={() => handleTestSound(typeSettings.sound)}
-                      disabled={!settings.soundEnabled || typeSettings.sound === 'none'}
-                      style={{
-                        padding: '4px 12px',
-                        borderRadius: '4px',
-                        border: '1px solid var(--dsw-alias-border-l3)',
-                        background: 'var(--dsw-alias-interactive-bg-hover)',
-                        color: 'var(--dsw-alias-label-primary)',
-                        cursor: settings.soundEnabled && typeSettings.sound !== 'none' ? 'pointer' : 'not-allowed',
-                      }}
-                    >
-                      ▶
-                    </button>
-                  </div>
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '24px' }}>
+                      <select
+                        value={typeSettings.sound}
+                        onChange={e => updateEventType(eventType, 'sound', e.target.value as SoundId)}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid var(--dsw-alias-border-l3)',
+                          background: 'var(--dsw-alias-bg-layer-1)',
+                          color: 'var(--dsw-alias-label-primary)',
+                        }}
+                      >
+                        <option value="chime">{t('sound.chime')}</option>
+                        <option value="success">{t('sound.success')}</option>
+                        <option value="subtle">{t('sound.subtle')}</option>
+                        <option value="none">{t('sound.none')}</option>
+                      </select>
+                      <button
+                        className="attention-test-btn"
+                        onClick={() => handleTestSound(typeSettings.sound)}
+                        disabled={!settings.soundEnabled || typeSettings.sound === 'none'}
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: '4px',
+                          border: '1px solid var(--dsw-alias-border-l3)',
+                          background: 'var(--dsw-alias-interactive-bg-hover)',
+                          color: 'var(--dsw-alias-label-primary)',
+                          cursor: settings.soundEnabled && typeSettings.sound !== 'none' ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        ▶
+                      </button>
+                    </div>
+
+                    {/* Custom audio for this event type */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                      marginLeft: '24px',
+                      marginTop: '8px',
+                      fontSize: '13px',
+                    }}>
+                      <input
+                        ref={el => { audioInputRefs.current[eventType] = el }}
+                        type="file"
+                        accept={AUDIO_ACCEPT}
+                        hidden
+                        onChange={e => {
+                          const file = e.target.files?.[0]
+                          // Reset so picking the same file again still fires onChange.
+                          e.target.value = ''
+                          if (file) void handleAudioPicked(eventType, file)
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => audioInputRefs.current[eventType]?.click()}
+                        style={SMALL_BUTTON_STYLE}
+                      >
+                        {t('settings.customAudio.upload')}
+                      </button>
+                      <span style={{ color: 'var(--dsw-alias-label-secondary)' }}>
+                        {typeSettings.customAudio ? typeSettings.customAudio.name : t('settings.customAudio.none')}
+                      </span>
+                      {typeSettings.customAudio && (
+                        <button
+                          type="button"
+                          onClick={() => handleClearAudio(eventType)}
+                          style={SMALL_BUTTON_STYLE}
+                        >
+                          {t('settings.customAudio.clear')}
+                        </button>
+                      )}
+                    </div>
+                    {audioError?.kind === eventType && (
+                      <p style={{
+                        marginLeft: '24px',
+                        marginTop: '6px',
+                        fontSize: '12px',
+                        color: 'var(--dsw-alias-state-error-primary, #d33)',
+                      }}>
+                        {t(`settings.customAudio.error.${audioError.reason}` as keyof typeof locales['en'])
+                          .replace('{size}', formatBytes(MAX_AUDIO_BYTES))}
+                      </p>
+                    )}
+                    <p style={{
+                      marginLeft: '24px',
+                      marginTop: '6px',
+                      fontSize: '12px',
+                      color: 'var(--dsw-alias-label-tertiary)',
+                    }}>
+                      {t('settings.customAudio.hint').replace('{size}', formatBytes(MAX_AUDIO_BYTES))}
+                    </p>
+                  </>
                 )}
               </div>
             )
@@ -271,25 +402,38 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
           {t('settings.mode.description')}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {MAINLINE_MODE_OPTIONS.map(({ mode, labelKey }) => (
+          {MAINLINE_MODE_OPTIONS.map(({ mode, labelKey, descriptionKey }) => (
             <label
               key={mode}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}
+              style={{
+                display: 'flex',
+                alignItems: descriptionKey ? 'flex-start' : 'center',
+                gap: '8px',
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
             >
               <input
                 type="radio"
                 name="attention-mainline-mode"
                 checked={settings.mainlineMode === mode}
                 onChange={() => updateSetting('mainlineMode', mode)}
-                style={{ accentColor: 'var(--dsw-alias-state-business-primary)' }}
+                style={{
+                  accentColor: 'var(--dsw-alias-state-business-primary)',
+                  marginTop: descriptionKey ? '3px' : undefined,
+                }}
               />
-              <span>{t(labelKey)}</span>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span>{t(labelKey)}</span>
+                {descriptionKey && (
+                  <span style={{ color: 'var(--dsw-alias-label-secondary)', lineHeight: '1.4' }}>
+                    {t(descriptionKey)}
+                  </span>
+                )}
+              </span>
             </label>
           ))}
         </div>
-        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-tertiary)', marginTop: '8px', fontStyle: 'italic' }}>
-          {t('settings.mode.hint')}
-        </p>
       </div>
 
       {/* Main-line Session Marker */}
@@ -301,41 +445,8 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
         <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', lineHeight: '1.5' }}>
           {t('settings.mainline.description')}
         </p>
-        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-tertiary)', marginTop: '8px', fontStyle: 'italic' }}>
-          {t('settings.mainline.hint')}
-        </p>
       </div>
       
-      {/* Side-line Alert Mode */}
-      <div style={{ marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px' }}>
-          {t('settings.sideline.label')}
-        </h3>
-        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', lineHeight: '1.5', marginBottom: '10px' }}>
-          {t('settings.sideline.description')}
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginLeft: '0' }}>
-          {SIDELINE_OPTIONS.map(({ mode, labelKey }) => (
-            <label
-              key={mode}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}
-            >
-              <input
-                type="radio"
-                name="attention-sideline-mode"
-                checked={settings.sidelineMode === mode}
-                onChange={() => updateSetting('sidelineMode', mode)}
-                style={{ accentColor: 'var(--dsw-alias-state-business-primary)' }}
-              />
-              <span>{t(labelKey)}</span>
-            </label>
-          ))}
-        </div>
-        <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-tertiary)', marginTop: '8px', fontStyle: 'italic' }}>
-          {t('settings.sideline.hint')}
-        </p>
-      </div>
-
       {/* Browser Notifications */}
       <div style={{ marginBottom: '24px' }}>
         <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
@@ -400,19 +511,48 @@ export function AttentionSettingsSection({ locale = 'en' }: SettingsSectionProps
         </div>
       </div>
       
-      {/* Alert for Current Session */}
-      <div>
+      {/* Current Session Alerts */}
+      <div style={{ marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px' }}>
+          {t('settings.currentSession.label')}
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {CURRENT_SESSION_OPTIONS.map(({ mode, labelKey, descriptionKey }) => (
+            <label
+              key={mode}
+              style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', cursor: 'pointer' }}
+            >
+              <input
+                type="radio"
+                name="attention-current-session-mode"
+                checked={settings.currentSessionMode === mode}
+                onChange={() => updateSetting('currentSessionMode', mode)}
+                style={{ accentColor: 'var(--dsw-alias-state-business-primary)', marginTop: '3px' }}
+              />
+              <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span>{t(labelKey)}</span>
+                <span style={{ color: 'var(--dsw-alias-label-secondary)', lineHeight: '1.4' }}>
+                  {t(descriptionKey)}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Wait for Subagents */}
+      <div style={{ marginBottom: '24px' }}>
         <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
           <input
             type="checkbox"
-            checked={settings.notifyCurrent}
-            onChange={e => updateSetting('notifyCurrent', e.target.checked)}
+            checked={settings.waitForSubagents}
+            onChange={e => updateSetting('waitForSubagents', e.target.checked)}
             style={{ marginRight: '8px', accentColor: 'var(--dsw-alias-state-business-primary)' }}
           />
-          <span style={{ fontWeight: 500 }}>{t('settings.notifyCurrent.label')}</span>
+          <span style={{ fontWeight: 500 }}>{t('settings.waitForSubagents.label')}</span>
         </label>
         <p style={{ fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', marginLeft: '24px' }}>
-          {t('settings.notifyCurrent.description')}
+          {t('settings.waitForSubagents.description')}
         </p>
       </div>
 

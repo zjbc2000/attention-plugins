@@ -1,0 +1,9 @@
+# Issue 模板配置
+#
+# 关闭空白 issue：四类反馈（install / sound / compatibility / enhancement）都有
+# 专门表单，必填项设计成可直接复现问题。若以后启用 GitHub Discussions，可在此加
+# contact_links 指过去；当前未启用，故不配置链接。
+#
+# 注意：表单 labels 引用的 install / sound / compatibility / enhancement 四个标签
+# 需要在仓库 Settings → Labels 中存在，否则创建 issue 时会被拒绝。
+blank_issues_enabled: false

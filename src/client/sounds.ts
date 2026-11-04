@@ -21,11 +21,58 @@ import { computeEnvelope, resolveContextAction, type SoundId, type SoundEnvelope
 
 export type { SoundId } from './sound-params.js'
 
-/** Play one of the built-in sounds at the specified volume (0-100). */
-export function playSound(sound: SoundId, volume: number): void {
+/**
+ * Play a notification sound at the specified volume (0-100).
+ *
+ * `customUrl` is a `data:` URL uploaded by the user; when set it takes over
+ * completely and the built-in synthesis is skipped, so a user clip still plays
+ * for an event whose built-in sound is `'none'`. Omitting it keeps the original
+ * behaviour, so older call sites are unaffected.
+ */
+export function playSound(sound: SoundId, volume: number, customUrl?: string | null): void {
+  if (customUrl) {
+    playCustomAudio(customUrl, volume)
+    return
+  }
   if (sound === 'none') return
   if (volume <= 0) return
   void playSoundAsync(sound, volume)
+}
+
+/**
+ * Play an uploaded clip through an HTMLAudioElement.
+ *
+ * The Web Audio path is not reused here: the clip may be any container/codec
+ * the browser can decode itself, and decoding it into an AudioBuffer would
+ * double memory for no gain. Playback is best-effort — a rejected `play()`
+ * (autoplay policy, undecodable data URL) must not break the notification, so
+ * it only warns.
+ */
+function playCustomAudio(dataUrl: string, volume: number): void {
+  try {
+    const audio = new Audio(dataUrl)
+    audio.volume = clampUnit(volume / 100)
+    audio.addEventListener(
+      'ended',
+      () => {
+        // Release the decoded clip and its (potentially large) data URL.
+        audio.src = ''
+      },
+      { once: true },
+    )
+    void audio.play().catch((err: unknown) => {
+      console.warn('[attention-plugins] Failed to play custom sound:', err)
+    })
+  } catch (err) {
+    // `new Audio()` / a stubbed playback can also fail synchronously.
+    console.warn('[attention-plugins] Failed to play custom sound:', err)
+  }
+}
+
+/** Clamp to the HTMLMediaElement volume range [0, 1]; NaN becomes silence. */
+function clampUnit(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(1, Math.max(0, value))
 }
 
 /** Lazy singleton AudioContext. */

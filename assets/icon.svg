@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">attention-plugins</title>
+  <desc id="desc">A bell over three stacked bars of decreasing width: one alert, task priority tiers (main line first, side lines below). Single-colour mark, no text.</desc>
+
+  <!--
+    attention-plugins icon — 512×512, monochrome, no text, no external assets.
+    Replace #111111 with #FFFFFF (or use currentColor) to invert for dark surfaces.
+  -->
+
+  <g fill="none" stroke="#111111" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+    <!-- bell body (outline) -->
+    <path d="M150 330 C150 300 172 288 182 258 C194 222 196 178 256 178 C316 178 318 222 330 258 C340 288 362 300 362 330"/>
+    <!-- knob -->
+    <circle cx="256" cy="154" r="15" fill="#111111" stroke="none"/>
+    <!-- mouth -->
+    <rect x="132" y="320" width="248" height="32" rx="16" fill="#111111" stroke="none"/>
+  </g>
+
+  <!-- priority tiers: widest = main line (alerts immediately), narrower = side lines (batched) -->
+  <g fill="#111111">
+    <rect x="148" y="380" width="216" height="28" rx="14"/>
+    <rect x="188" y="420" width="136" height="28" rx="14"/>
+    <rect x="228" y="460" width="56" height="28" rx="14"/>
+  </g>
+</svg>

@@ -23,10 +23,11 @@ export function apply(ctx: Context, config: Config) {
         soundEnabled: true,
         volume: 70,
         browserEnabled: false,
-        notifyCurrent: false,
+        currentSessionMode: 'hidden',
         mainlineSessionIds: [],
-        sidelineMode: 'per-session',
+        mutedSessionIds: [],
         mainlineMode: 'mainline',
+        waitForSubagents: true,
         types: {
           completed: { enabled: true, sound: 'chime' },
           failed: { enabled: true, sound: 'subtle' },

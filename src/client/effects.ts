@@ -139,6 +139,109 @@ export const attentionCss = `
   transform: scale(.94);
 }
 
+/* ── meta bar: repo link, installed version, issues, update check ───────── */
+.attention-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  margin: 0 0 22px;
+}
+
+.attention-meta-id {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.attention-meta-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  color: var(--dsw-alias-label-primary, inherit);
+}
+
+.attention-meta-version {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: .02em;
+  color: var(--att-violet);
+}
+
+.attention-meta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.attention-meta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, inherit);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color .18s ease, border-color .18s ease, background-color .18s ease,
+    transform .15s ease;
+}
+
+.attention-meta-btn:hover:not(:disabled) {
+  color: var(--dsw-alias-label-primary, inherit);
+  border-color: color-mix(in srgb, var(--att-violet) 55%, var(--dsw-alias-border-l3));
+  background: var(--dsw-alias-interactive-bg-hover, transparent);
+  transform: translateY(-1px);
+}
+
+.attention-meta-btn:focus-visible {
+  outline: 2px solid var(--att-violet);
+  outline-offset: 2px;
+}
+
+.attention-meta-btn:disabled {
+  cursor: progress;
+  opacity: .7;
+}
+
+.attention-meta-status {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, inherit);
+}
+
+.attention-meta-status a {
+  color: var(--att-violet);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.attention-meta-status a:hover {
+  text-decoration: underline;
+}
+
+.attention-meta-status.is-error {
+  color: var(--dsw-alias-label-tertiary, inherit);
+}
+
+.attention-meta-spin {
+  animation: attention-spin 1s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes attention-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ── accessibility: honour reduced-motion ───────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .attention-hero,
@@ -150,5 +253,7 @@ export const attentionCss = `
     transition: none !important;
   }
   .attention-test-btn { transition: none; }
+  .attention-meta-btn { transition: none; }
+  .attention-meta-spin { animation: none; }
 }
 `

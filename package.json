@@ -1,7 +1,7 @@
 {
   "name": "attention-plugins",
-  "version": "0.2.1",
-  "description": "DSH task-priority session notifications: main-line tasks alert immediately, side-line completions can be batched, plus questions and permission requests.",
+  "version": "0.2.2",
+  "description": "DSH task-tiered session notifications: marked main-line sessions alert as they finish, other sessions batch into one summary, plus balanced and silent modes, custom audio, per-session mute and click-to-open notifications.",
   "author": "zjbc2000",
   "type": "module",
   "main": "lib/index.js",
@@ -41,7 +41,8 @@
     "clean": "rm -rf lib",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "npm test && npm run build"
+    "prepublishOnly": "npm test && npm run build",
+    "shots": "node scripts/shots.mjs"
   },
   "engines": {
     "node": ">=20",
@@ -75,11 +76,15 @@
   "files": [
     "lib",
     "src",
-    "docs",
     "cordis.patch.yml",
     "README.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+    "docs/COMPATIBILITY.md",
+    "docs/METRICS.md",
+    "docs/SHOTS.md",
+    "docs/MARKET-LISTING.md"
   ],
   "keywords": [
     "dsh-plugin",

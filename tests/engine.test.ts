@@ -1,9 +1,16 @@
 /**
- * Tests for NotificationEngine: main-line/side-line logic and event classification.
+ * Tests for NotificationEngine: three-way mode behaviour, main-line/side-line
+ * classification and event classification.
+ *
+ * The engine itself only asks `ports.alertAction` what to do with one event
+ * (`now` / `aggregate` / `never`) and `ports.aggregateEnabled` whether a pooled
+ * wave may chime at all, so these tests compute the action from the same public
+ * policy (`decideAlert`) the browser wiring uses.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { NotificationEngine, type NotificationEvent, type NotificationEnginePorts, type SessionDetail } from '../src/client/engine'
-import type { SidelineMode } from '../src/settings'
+import type { MainlineMode } from '../src/settings'
+import { decideAlert } from '../src/policy'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 
 /** Mock sessions list state. */
@@ -31,20 +38,39 @@ function mockDetail(failed: boolean = false): SessionDetail {
 describe('NotificationEngine', () => {
   let emittedEvents: NotificationEvent[]
   let mainlineSessionId: string | null
-  let sidelineMode: SidelineMode
+  let mainlineMode: MainlineMode
+  let mutedSessionId: string | null
+  let waitForSubagents: boolean
+  let childrenRunning: Map<string, number>
   let engine: NotificationEngine
   let ports: NotificationEnginePorts
+
+  /** Pooled summary alerts in the order they were emitted. */
+  const aggregates = () => emittedEvents.filter(e => e.title === 'All tasks')
+  /** Per-session alerts (everything the aggregate did not cover). */
+  const individual = () => emittedEvents.filter(e => e.title !== 'All tasks')
 
   beforeEach(() => {
     emittedEvents = []
     mainlineSessionId = null
-    sidelineMode = 'per-session' // production default
+    mainlineMode = 'mainline' // production default
+    mutedSessionId = null
+    waitForSubagents = false
+    childrenRunning = new Map()
 
     ports = {
       titleOf: (id) => `Session ${id}`,
       detailOf: (id) => mockDetail(),
+      alertAction: (kind, id) => decideAlert({
+        kind,
+        markedMainline: id === mainlineSessionId,
+        mainlineMode,
+        muted: id === mutedSessionId,
+      }),
+      runningChildren: (id) => childrenRunning.get(id) ?? 0,
+      waitForSubagents: () => waitForSubagents,
       isMainline: (id) => id === mainlineSessionId,
-      sidelineMode: () => sidelineMode,
+      aggregateEnabled: () => mainlineMode === 'mainline',
       emit: (event) => emittedEvents.push(event),
       settle: () => Promise.resolve(),
     }
@@ -52,8 +78,12 @@ describe('NotificationEngine', () => {
     engine = new NotificationEngine(ports)
   })
 
-  describe('Per-session mode (default)', () => {
-    it('should notify for every side-line session as it completes', async () => {
+  describe('Balanced mode (every completion alerts)', () => {
+    beforeEach(() => {
+      mainlineMode = 'balanced'
+    })
+
+    it('should notify for every unmarked session as it completes', async () => {
       // Seed: A, B, C all running, none marked main-line
       engine.seed(mockSessionList([
         { id: 'A', running: true },
@@ -70,12 +100,13 @@ describe('NotificationEngine', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // A alerted on its own — no "wait for everyone" behaviour
-      expect(emittedEvents).toHaveLength(1)
-      expect(emittedEvents[0].kind).toBe('completed')
-      expect(emittedEvents[0].sessionId).toBe('A')
-      expect(emittedEvents[0].title).toBe('Session A')
-      expect(emittedEvents[0].detail).toBe('Done')
+      // Balanced mode alerts A on its own — no "wait for everyone" behaviour
+      expect(individual()).toHaveLength(1)
+      expect(individual()[0].kind).toBe('completed')
+      expect(individual()[0].sessionId).toBe('A')
+      expect(individual()[0].title).toBe('Session A')
+      expect(individual()[0].detail).toBe('Done')
+      expect(aggregates()).toHaveLength(0)
     })
 
     it('should ring once per finished task (N tasks = N alerts)', async () => {
@@ -96,7 +127,7 @@ describe('NotificationEngine', () => {
 
       expect(emittedEvents.map(e => e.sessionId)).toEqual(['A', 'B', 'C'])
       // No aggregate "All tasks" alert is added on top.
-      expect(emittedEvents.every(e => e.title.startsWith('Session '))).toBe(true)
+      expect(aggregates()).toHaveLength(0)
     })
 
     it('should NOT emit the aggregate "All tasks" alert', async () => {
@@ -119,11 +150,10 @@ describe('NotificationEngine', () => {
       await new Promise(resolve => setTimeout(resolve, 150))
 
       expect(emittedEvents.map(e => e.sessionId)).toEqual(['A', 'B'])
-      expect(emittedEvents.some(e => e.title === 'All tasks')).toBe(false)
-      expect(emittedEvents.some(e => e.detail.includes('All side-line'))).toBe(false)
+      expect(aggregates()).toHaveLength(0)
     })
 
-    it('should classify a side-line failure like any other run', async () => {
+    it('should classify an unmarked failure like any other run', async () => {
       let runStarted = false
       ports.detailOf = () => mockDetail(runStarted)
 
@@ -138,7 +168,7 @@ describe('NotificationEngine', () => {
       expect(emittedEvents[0].sessionId).toBe('A')
     })
 
-    it('should alert main-line and side-line identically', async () => {
+    it('should alert a marked main-line and an unmarked session identically', async () => {
       mainlineSessionId = 'MAIN'
 
       engine.seed(mockSessionList([
@@ -154,80 +184,48 @@ describe('NotificationEngine', () => {
       await new Promise(resolve => setTimeout(resolve, 150))
 
       expect(emittedEvents.map(e => e.sessionId).sort()).toEqual(['A', 'MAIN'])
-    })
-
-    it('should honour a mid-run mode switch', async () => {
-      // Starts in batch mode: A stays silent while B runs
-      sidelineMode = 'batch'
-      engine.seed(mockSessionList([
-        { id: 'A', running: true },
-        { id: 'B', running: true },
-      ]))
-
-      engine.observe(mockSessionList([
-        { id: 'A', running: false },
-        { id: 'B', running: true },
-      ]))
-      await new Promise(resolve => setTimeout(resolve, 150))
-      expect(emittedEvents).toHaveLength(0)
-
-      // User switches to per-session while B is still running
-      sidelineMode = 'per-session'
-
-      engine.observe(mockSessionList([
-        { id: 'A', running: false },
-        { id: 'B', running: false },
-      ]))
-      await new Promise(resolve => setTimeout(resolve, 150))
-
-      expect(emittedEvents.map(e => e.sessionId)).toEqual(['B'])
+      expect(aggregates()).toHaveLength(0)
     })
   })
 
-  describe('Side-line logic (batch mode)', () => {
-    beforeEach(() => {
-      sidelineMode = 'batch'
-    })
-
-    it('should NOT notify when single session completes (others still running)', async () => {
-      // Seed: A, B, C all running
+  describe('Mainline mode aggregation (unmarked completions pool)', () => {
+    it('should NOT notify when a single unmarked session completes (others still running)', async () => {
+      // Seed: A, B, C all running, none marked main-line
       engine.seed(mockSessionList([
         { id: 'A', running: true },
         { id: 'B', running: true },
         { id: 'C', running: true },
       ]))
 
-      // A completes, B and C still running
+      // A completes, B and C still running: it joins the aggregate instead of
+      // ringing on its own.
       engine.observe(mockSessionList([
         { id: 'A', running: false },
         { id: 'B', running: true },
         { id: 'C', running: true },
       ]))
 
-      // Wait for settle
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // No side-line event yet (still have running sessions)
       expect(emittedEvents).toHaveLength(0)
     })
 
     it('should notify once when ALL sessions become idle (side-line complete)', async () => {
-      // Seed: A, B running
       engine.seed(mockSessionList([
         { id: 'A', running: true },
         { id: 'B', running: true },
       ]))
 
-      // A completes
+      // A completes while B keeps running: pooled, stays quiet.
       engine.observe(mockSessionList([
         { id: 'A', running: false },
         { id: 'B', running: true },
       ]))
 
       await new Promise(resolve => setTimeout(resolve, 150))
-      expect(emittedEvents).toHaveLength(0) // Not yet
+      expect(emittedEvents).toHaveLength(0)
 
-      // B also completes → all idle
+      // B also completes → all idle: the wave's one summary alert.
       engine.observe(mockSessionList([
         { id: 'A', running: false },
         { id: 'B', running: false },
@@ -235,38 +233,38 @@ describe('NotificationEngine', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // Now side-line completes
-      expect(emittedEvents).toHaveLength(1)
-      expect(emittedEvents[0].kind).toBe('completed')
-      expect(emittedEvents[0].detail).toContain('All side-line tasks')
+      expect(aggregates()).toHaveLength(1)
+      expect(aggregates()[0].kind).toBe('completed')
+      expect(aggregates()[0].title).toBe('All tasks')
+      expect(aggregates()[0].detail).toContain('All side-line tasks')
+      // No unmarked session rang on its own.
+      expect(individual()).toHaveLength(0)
     })
 
-    it('should handle new wave: start C after A+B complete', async () => {
-      // A, B running
+    it('should handle new wave: a later unmarked completion aggregates again', async () => {
       engine.seed(mockSessionList([
         { id: 'A', running: true },
         { id: 'B', running: true },
       ]))
 
-      // Both complete
+      // Both complete together → one pooled summary for the wave.
       engine.observe(mockSessionList([
         { id: 'A', running: false },
         { id: 'B', running: false },
       ]))
 
       await new Promise(resolve => setTimeout(resolve, 150))
-      expect(emittedEvents).toHaveLength(1) // Side-line complete
+      expect(aggregates()).toHaveLength(1)
 
-      emittedEvents.length = 0 // Reset
+      emittedEvents.length = 0
 
-      // Start new session C
+      // New wave: C starts and completes on its own.
       engine.observe(mockSessionList([
         { id: 'A', running: false },
         { id: 'B', running: false },
         { id: 'C', running: true },
       ]))
 
-      // C completes
       engine.observe(mockSessionList([
         { id: 'A', running: false },
         { id: 'B', running: false },
@@ -275,9 +273,106 @@ describe('NotificationEngine', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // New wave completes
-      expect(emittedEvents).toHaveLength(1)
-      expect(emittedEvents[0].kind).toBe('completed')
+      expect(aggregates()).toHaveLength(1)
+      expect(aggregates()[0].kind).toBe('completed')
+      expect(individual()).toHaveLength(0)
+    })
+
+    it('should honour a mid-run switch from mainline to balanced', async () => {
+      engine.seed(mockSessionList([
+        { id: 'A', running: true },
+        { id: 'B', running: true },
+      ]))
+
+      // Mainline mode: A is unmarked, so its completion is pooled and silent.
+      engine.observe(mockSessionList([
+        { id: 'A', running: false },
+        { id: 'B', running: true },
+      ]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents).toHaveLength(0)
+
+      // User switches to balanced while B is still running: B now rings on its
+      // own completion instead of waiting for the all-idle aggregate.
+      mainlineMode = 'balanced'
+
+      engine.observe(mockSessionList([
+        { id: 'A', running: false },
+        { id: 'B', running: false },
+      ]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents.map(e => e.sessionId)).toEqual(['B'])
+      expect(aggregates()).toHaveLength(0)
+    })
+
+    it('should honour a mid-run switch from balanced to mainline', async () => {
+      mainlineMode = 'balanced'
+
+      engine.seed(mockSessionList([
+        { id: 'A', running: true },
+        { id: 'B', running: true },
+      ]))
+
+      // Balanced: A rings on its own.
+      engine.observe(mockSessionList([
+        { id: 'A', running: false },
+        { id: 'B', running: true },
+      ]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents.map(e => e.sessionId)).toEqual(['A'])
+
+      // Back to mainline while B runs: B is unmarked again and is pooled.
+      mainlineMode = 'mainline'
+
+      engine.observe(mockSessionList([
+        { id: 'A', running: false },
+        { id: 'B', running: false },
+      ]))
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(individual().map(e => e.sessionId)).toEqual(['A'])
+      expect(aggregates()).toHaveLength(1)
+    })
+  })
+
+  describe('Silent mode', () => {
+    beforeEach(() => {
+      mainlineMode = 'silent'
+    })
+
+    it('should stay silent for completions, failures and markers alike', async () => {
+      mainlineSessionId = 'MAIN'
+      let runStarted = false
+      ports.detailOf = () => mockDetail(runStarted)
+
+      engine.seed(mockSessionList([
+        { id: 'MAIN', running: true },
+        { id: 'A', running: true },
+      ]))
+
+      // MAIN fails, A completes: neither completion may ring.
+      runStarted = true
+      engine.observe(mockSessionList([
+        { id: 'MAIN', running: false },
+        { id: 'A', running: false },
+      ]))
+
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(emittedEvents).toHaveLength(0)
+      expect(aggregates()).toHaveLength(0)
+    })
+
+    it('should still alert questions and permission requests', () => {
+      engine.observePending(new Map([
+        ['A', { key: 'q1', kind: 'question' as const, detail: 'What next?' }],
+      ]))
+      engine.observePending(new Map([
+        ['A', { key: 'a1', kind: 'approval' as const, detail: 'Allow tool X?' }],
+      ]))
+
+      expect(emittedEvents.map(e => e.kind)).toEqual(['question', 'permission'])
     })
   })
 
@@ -300,13 +395,14 @@ describe('NotificationEngine', () => {
       await new Promise(resolve => setTimeout(resolve, 150))
 
       // Main-line alerts immediately
-      expect(emittedEvents).toHaveLength(1)
-      expect(emittedEvents[0].kind).toBe('completed')
-      expect(emittedEvents[0].sessionId).toBe('MAIN')
-      expect(emittedEvents[0].title).toBe('Session MAIN')
+      expect(individual()).toHaveLength(1)
+      expect(individual()[0].kind).toBe('completed')
+      expect(individual()[0].sessionId).toBe('MAIN')
+      expect(individual()[0].title).toBe('Session MAIN')
+      expect(aggregates()).toHaveLength(0)
     })
 
-    it('should NOT trigger side-line when main-line completes (others still running)', async () => {
+    it('should NOT trigger the aggregate when main-line completes (others still running)', async () => {
       mainlineSessionId = 'MAIN'
 
       engine.seed(mockSessionList([
@@ -322,12 +418,12 @@ describe('NotificationEngine', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // Only main-line event, no side-line
+      // Only the main-line event, no summary yet.
       expect(emittedEvents).toHaveLength(1)
       expect(emittedEvents[0].sessionId).toBe('MAIN')
     })
 
-    it('should trigger both main-line AND side-line when all complete', async () => {
+    it('should trigger both main-line AND the pooled summary when all complete', async () => {
       mainlineSessionId = 'MAIN'
 
       engine.seed(mockSessionList([
@@ -343,11 +439,24 @@ describe('NotificationEngine', () => {
 
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      // Main-line + side-line both fire
-      expect(emittedEvents.length).toBeGreaterThanOrEqual(1)
-      const mainEvent = emittedEvents.find(e => e.sessionId === 'MAIN')
-      expect(mainEvent).toBeDefined()
-      expect(mainEvent?.kind).toBe('completed')
+      // The main line rings for itself; the unmarked sibling only reaches the
+      // user through the wave's single summary alert.
+      expect(individual().map(e => e.sessionId)).toEqual(['MAIN'])
+      expect(individual()[0].kind).toBe('completed')
+      expect(aggregates()).toHaveLength(1)
+      expect(aggregates()[0].title).toBe('All tasks')
+    })
+
+    it('should not ring the summary for a wave that only had a main line', async () => {
+      mainlineSessionId = 'MAIN'
+
+      engine.seed(mockSessionList([{ id: 'MAIN', running: true }]))
+      engine.observe(mockSessionList([{ id: 'MAIN', running: false }]))
+
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(individual()).toHaveLength(1)
+      expect(aggregates()).toHaveLength(0)
     })
   })
 
@@ -445,6 +554,24 @@ describe('NotificationEngine', () => {
 
       expect(emittedEvents).toHaveLength(2)
       expect(emittedEvents[1].kind).toBe('failed')
+    })
+
+    it('should classify an unmarked completion for the aggregate', async () => {
+      // No marker: in mainline mode the completion is pooled, and the pooled
+      // summary carries the completed kind (not a per-session failure).
+      let runStarted = false
+      ports.detailOf = () => mockDetail(runStarted)
+
+      engine.seed(mockSessionList([{ id: 'A', running: true }]))
+      runStarted = true
+      engine.observe(mockSessionList([{ id: 'A', running: false }]))
+
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      expect(individual()).toHaveLength(0)
+      expect(aggregates()).toHaveLength(1)
+      expect(aggregates()[0].kind).toBe('completed')
+      expect(aggregates()[0].detail).toContain('All side-line tasks')
     })
   })
 
@@ -603,6 +730,50 @@ describe('NotificationEngine', () => {
       ]))
 
       expect(emittedEvents).toHaveLength(2)
+    })
+
+    it('should keep a muted session silent for questions too', () => {
+      mutedSessionId = 'A'
+
+      engine.observePending(new Map([
+        ['A', { key: 'q1', kind: 'question' as const, detail: 'What?' }],
+      ]))
+
+      expect(emittedEvents).toHaveLength(0)
+    })
+  })
+
+  describe('Subagent deferral', () => {
+    it('should defer a main-line completion until its children stop running', async () => {
+      mainlineSessionId = 'A'
+      waitForSubagents = true
+      childrenRunning.set('A', 1)
+
+      engine.seed(mockSessionList([{ id: 'A', running: true }]))
+      engine.observe(mockSessionList([{ id: 'A', running: false }]))
+
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents).toHaveLength(0)
+
+      // Last child goes idle: the held completion is released.
+      childrenRunning.set('A', 0)
+      engine.observeStatus('child', false)
+
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents).toHaveLength(1)
+      expect(emittedEvents[0].sessionId).toBe('A')
+    })
+
+    it('should alert immediately when subagent waiting is disabled', async () => {
+      mainlineSessionId = 'A'
+      waitForSubagents = false
+      childrenRunning.set('A', 1)
+
+      engine.seed(mockSessionList([{ id: 'A', running: true }]))
+      engine.observe(mockSessionList([{ id: 'A', running: false }]))
+
+      await new Promise(resolve => setTimeout(resolve, 150))
+      expect(emittedEvents).toHaveLength(1)
     })
   })
 })

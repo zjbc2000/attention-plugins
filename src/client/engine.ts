@@ -2,11 +2,13 @@
  * Notification engine for attention-plugins.
  * Supports 4 event types: completed, failed, question, permission.
  *
- * Side-line alerting is a user setting (`ports.sidelineMode`):
- * - `per-session` (default): EVERY session alerts on its own completion, main
- *   line or not, and no aggregate "all tasks" alert is ever raised.
- * - `batch`: only the main line alerts immediately; side-line sessions stay
- *   quiet and one aggregate alert fires when ALL running sessions go idle.
+ * Alerting follows the three-way task mode (`ports.alertAction`):
+ * - `mainline` mode: a marked main line alerts on its own; side-line sessions
+ *   are pooled and one "All tasks" alert fires once every running session has
+ *   gone idle.
+ * - `balanced` mode: every session alerts on its own.
+ * - `silent` mode: completions stay silent; questions and permission requests
+ *   still alert.
  *
  * Two equivalent inputs feed the same state machine:
  * - observe()/seed(): full sessions-list snapshots (0.1.6 store wiring, tests)
@@ -15,7 +17,8 @@
  */
 import type { SessionId } from '@deepseek-ai/dsh-client-connection/client'
 import type { SessionListState, SessionSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { NotificationType, SidelineMode } from '../settings.js'
+import type { NotificationType } from '../settings.js'
+import type { AlertAction } from '../policy.js'
 
 /** One notification event. */
 export interface NotificationEvent {
@@ -52,13 +55,19 @@ export interface NotificationEnginePorts {
   titleOf: (sessionId: SessionId) => string
   /** Read one session's detail snapshot. */
   detailOf: (sessionId: SessionId) => SessionDetail | undefined
-  /** Whether one session is marked as main-line. */
-  isMainline: (sessionId: SessionId) => boolean
   /**
-   * How side-line (non-main-line) sessions are alerted. Read on every run
-   * completion so switching the setting takes effect without a reload.
+   * What to do with one event: alert now, let the aggregate edge cover it, or
+   * stay silent. Read per event so a settings change applies without a reload.
    */
-  sidelineMode: () => SidelineMode
+  alertAction: (kind: NotificationType, sessionId: SessionId) => AlertAction
+  /** Running sessions whose direct parent is `sessionId` (0 when none). */
+  runningChildren: (sessionId: SessionId) => number
+  /** Whether a finished run must wait for its running subagents. */
+  waitForSubagents: () => boolean
+  /** Whether the user marked this session as main-line (for aggregate suppression). */
+  isMainline: (sessionId: SessionId) => boolean
+  /** Whether side-line completions are delivered as one aggregate alert. */
+  aggregateEnabled: () => boolean
   /** Deliver one notification event. */
   emit: (event: NotificationEvent) => void
   /** Wait for trailing wire frames after a running edge (settle window). */
@@ -91,9 +100,26 @@ export class NotificationEngine {
    * message distinguishable.
    */
   private readonly errorCounts = new Map<SessionId, number>()
+  /**
+   * Completions held back because the session still had running subagents.
+   * Released by `flushDeferred()` once the last child goes idle.
+   */
+  private readonly deferred = new Map<SessionId, NotificationEvent>()
 
   /** Track whether we've seen any running=true (for side-line "all idle" detection). */
   private hadRunning = false
+  /**
+   * At least one completion was pooled for the aggregate alert during this
+   * wave. Without it an all-idle edge (e.g. only main lines ran) must stay
+   * quiet instead of ringing "All tasks" for nothing.
+   */
+  private poolPending = false
+  /**
+   * The aggregate for the current wave was already emitted. Settling is async,
+   * so a late completion can find the all-idle edge already handled; this flag
+   * keeps it from ringing "All tasks" a second time.
+   */
+  private aggregateSentThisWave = false
 
   constructor(private readonly ports: NotificationEnginePorts) {}
 
@@ -103,7 +129,6 @@ export class NotificationEngine {
   observe(sessions: SessionListState): void {
     const seen = new Set<SessionId>()
     let hasRunning = false
-    let mainlineJustCompleted = false
 
     for (const summary of Object.values(sessions.byId)) {
       const id = summary.id
@@ -117,11 +142,6 @@ export class NotificationEngine {
       // Detect true → false edge
       if (prevRunning && !nowRunning) {
         void this.settleRun(id)
-
-        // Track if main-line just completed (for side-line suppression)
-        if (this.ports.isMainline(id)) {
-          mainlineJustCompleted = true
-        }
       } else if (!prevRunning && nowRunning) {
         this.armRun(id)
       }
@@ -129,13 +149,12 @@ export class NotificationEngine {
       this.prevRunning.set(id, nowRunning)
     }
 
-    // Side-line logic: detect "had running → all idle" edge. Only the `batch`
-    // mode aggregates; in `per-session` mode every session already alerted
-    // itself, so an aggregate would just be a duplicate.
-    if (this.aggregates() && this.hadRunning && !hasRunning && !mainlineJustCompleted) {
+    if (this.aggregates() && this.poolPending && this.hadRunning && !hasRunning
+      && !this.aggregateSentThisWave) {
       this.emitSidelineComplete()
     }
     this.hadRunning = hasRunning
+    this.flushDeferred()
 
     // Clean up tracking for removed sessions
     for (const id of this.prevRunning.keys()) {
@@ -155,11 +174,9 @@ export class NotificationEngine {
    */
   observeStatus(sessionId: SessionId, running: boolean): void {
     const prev = this.prevRunning.get(sessionId) ?? false
-    let mainlineJustCompleted = false
 
     if (prev && !running) {
       void this.settleRun(sessionId)
-      if (this.ports.isMainline(sessionId)) mainlineJustCompleted = true
     } else if (!prev && running) {
       this.armRun(sessionId)
     }
@@ -170,10 +187,12 @@ export class NotificationEngine {
     for (const v of this.prevRunning.values()) {
       if (v) { hasRunning = true; break }
     }
-    if (this.aggregates() && this.hadRunning && !hasRunning && !mainlineJustCompleted) {
+    if (this.aggregates() && this.poolPending && this.hadRunning && !hasRunning
+      && !this.aggregateSentThisWave) {
       this.emitSidelineComplete()
     }
     this.hadRunning = hasRunning
+    this.flushDeferred()
   }
 
   /**
@@ -194,6 +213,7 @@ export class NotificationEngine {
    * Process one api-session/removed event: drop all tracking for the session.
    */
   observeRemoved(sessionId: SessionId): void {
+    this.deferred.delete(sessionId)
     this.prevRunning.delete(sessionId)
     this.runs.delete(sessionId)
     this.pendingKeys.delete(sessionId)
@@ -227,9 +247,10 @@ export class NotificationEngine {
     for (const [id, facts] of pending) {
       const prevKey = this.pendingKeys.get(id)
       if (prevKey === undefined || prevKey !== facts.key) {
-        // New interaction or replacement
+        // New interaction or replacement. A muted session stays silent here too:
+        // muting one session means muting every event it raises.
         const kind: NotificationType = facts.kind === 'approval' ? 'permission' : 'question'
-        if (options.silent !== true) {
+        if (options.silent !== true && this.ports.alertAction(kind, id) !== 'never') {
           this.ports.emit({
             kind,
             sessionId: id,
@@ -263,11 +284,23 @@ export class NotificationEngine {
 
   /** Whether side-line sessions are aggregated instead of alerted one by one. */
   private aggregates(): boolean {
-    return this.ports.sidelineMode() === 'batch'
+    return this.ports.aggregateEnabled()
   }
 
-  /** Capture pre-run baseline. */
+  /** Whether any tracked session still reports `running`. */
+  private anyRunning(): boolean {
+    for (const running of this.prevRunning.values()) {
+      if (running) return true
+    }
+    return false
+  }
+
+  /** Capture pre-run baseline. A new wave starts when nothing else runs. */
   private armRun(id: SessionId): void {
+    if (!this.anyRunning()) {
+      this.poolPending = false
+      this.aggregateSentThisWave = false
+    }
     const detail = this.ports.detailOf(id)
     this.runs.set(id, {
       baselineTurnErrorSeq: detail?.maxTurnErrorSeq ?? 0,
@@ -306,30 +339,62 @@ export class NotificationEngine {
         : (detail?.finalText ?? '')
 
       const kind: NotificationType = failed ? 'failed' : 'completed'
-
-      // `per-session` (default): every finished run alerts, main-line or not.
-      // `batch`: only the main line alerts; side-line runs are silent and are
-      // covered by the aggregate "all idle" alert instead.
-      if (this.ports.isMainline(id) || !this.aggregates()) {
-        this.ports.emit({
-          kind,
-          sessionId: id,
-          title: this.ports.titleOf(id),
-          detail: message,
-        })
+      const event: NotificationEvent = {
+        kind,
+        sessionId: id,
+        title: this.ports.titleOf(id),
+        detail: message,
       }
-      // In `batch` mode, side-line completions are handled by the "all idle"
-      // edge in observe()/observeStatus() (no individual per-session alert).
+
+      const action = this.ports.alertAction(kind, id)
+      // `never` (muted / silent mode) stays silent; `aggregate` pools the run
+      // for the wave's single "All tasks" chime.
+      if (action === 'never') return
+      if (action === 'aggregate') {
+        this.poolPending = true
+        // Settling is async: the all-idle edge may already have passed, so
+        // fire the pooled chime here when nothing is left running — unless
+        // this wave's aggregate already went out from that edge.
+        if (this.anyRunning()) return
+        if (this.aggregates() && !this.aggregateSentThisWave) this.emitSidelineComplete()
+        return
+      }
+
+      // A run that spawned subagents is not finished while they still work.
+      if (this.ports.waitForSubagents() && this.ports.runningChildren(id) > 0) {
+        this.deferred.set(id, event)
+        return
+      }
+
+      this.ports.emit(event)
 
     } finally {
       this.settling.delete(id)
+      this.flushDeferred()
     }
   }
 
-  /** Emit side-line completion: all tasks finished. */
+  /**
+   * Release completions held back for running subagents.
+   * Called after every settled run and every status edge: once a parent has no
+   * running child left, its deferred completion is delivered (or, in
+   * `mainline` mode for an unmarked session, joins the aggregate).
+   */
+  flushDeferred(): void {
+    if (this.deferred.size === 0) return
+    for (const [id, event] of this.deferred) {
+      if (this.ports.runningChildren(id) > 0) continue
+      this.deferred.delete(id)
+      this.ports.emit(event)
+    }
+  }
+
+  /** Emit the pooled side-line completion: every running session is idle. */
   private emitSidelineComplete(): void {
     // Skip if no sessions were tracked (edge case: all removed)
     if (this.prevRunning.size === 0) return
+    this.poolPending = false
+    this.aggregateSentThisWave = true
 
     // Use first session as representative
     const sessions = Array.from(this.prevRunning.keys())

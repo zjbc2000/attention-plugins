@@ -1,6 +1,7 @@
 /**
  * Tests for `normalizeSettings`: defaults merge, legacy single-marker
- * migration, and malformed list cleanup.
+ * migration, malformed list cleanup, and the `sidelineMode` → `mainlineMode`
+ * migration (the old setting was removed in favour of the three-way mode).
  */
 import { describe, it, expect } from 'vitest'
 import { defaultSettings, normalizeSettings } from '../src/settings'
@@ -27,6 +28,28 @@ describe('normalizeSettings', () => {
   it('prefers an explicit empty list over a stale legacy marker', () => {
     const raw = { mainlineSessionIds: [], mainlineSessionId: 'A' }
     expect(normalizeSettings(raw).mainlineSessionIds).toEqual([])
+  })
+
+  it('never emits the removed sidelineMode key', () => {
+    const result = normalizeSettings({} as any)
+    expect('sidelineMode' in result).toBe(false)
+    // Even a config that still carries it is cleaned up.
+    expect('sidelineMode' in normalizeSettings({ sidelineMode: 'batch' } as any)).toBe(false)
+  })
+
+  it('migrates the old per-session side-line mode to balanced', () => {
+    const raw = { mainlineMode: 'mainline', sidelineMode: 'per-session' } as any
+    expect(normalizeSettings(raw).mainlineMode).toBe('balanced')
+  })
+
+  it('migrates the old batch side-line mode to mainline (the default)', () => {
+    const raw = { mainlineMode: 'mainline', sidelineMode: 'batch' } as any
+    expect(normalizeSettings(raw).mainlineMode).toBe('mainline')
+  })
+
+  it('leaves an explicit balanced mode untouched by the old per-session setting', () => {
+    const raw = { mainlineMode: 'balanced', sidelineMode: 'per-session' } as any
+    expect(normalizeSettings(raw).mainlineMode).toBe('balanced')
   })
 
   it('merges partial type settings with defaults', () => {
