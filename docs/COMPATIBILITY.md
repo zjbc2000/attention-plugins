@@ -9,6 +9,7 @@
 |---|---|---|---|---|
 | 0.2.1 | 0.2.1-rc.2 | 作者开发与验证环境（端到端） | **已验证**（作者环境） | [README](../README.md) 顶部徽章 `DSH tested 0.2.1-rc.2`；README「安装」一节写「开发与验证环境为 0.2.1-rc.2」 |
 | 0.2.1 | 0.1.7 至 0.2.1-rc.1（含 0.1.7、0.2.0-rc.1） | 仅 `engines.dsh >=0.1.7` 声明，未逐版运行 | **未验证** | [`package.json` `engines.dsh`](../package.json#L48) |
+| 0.2.2 | 0.2.1-rc.4 | npm 官方 registry 安装（`dsh plugin add attention-plugins@0.2.2`）到临时 `DSH_HOME` + composed profile 断言，`scripts/smoke-install.sh --pkg attention-plugins@0.2.2`（2026-11-04T10:42Z 实际跑通，退出码 0）；**未触发 UI 完成事件** | **安装层通过**（registry 路径，按本文标准不算端到端） | [scripts/smoke-install.sh](../scripts/smoke-install.sh) |
 | 0.2.2 | 0.2.1-rc.4 | 本地 tarball（`npm pack`）安装到临时 `DSH_HOME` + composed profile 断言，`scripts/smoke-install.sh --pkg ./attention-plugins-0.2.2.tgz`（2026-11-04T09:12Z 实际跑通，退出码 0）；**未触发 UI 完成事件** | **安装层通过**（按本文标准不算端到端） | [scripts/smoke-install.sh](../scripts/smoke-install.sh) |
 | 0.2.1 | 0.2.1-rc.4 | 本地安装到临时 `DSH_HOME` + composed profile 断言（2026-11-04，`scripts/smoke-install.sh` 同款步骤），**未触发 UI 完成事件** | **未验证**（安装层通过，按本文标准不算端到端通过） | [scripts/smoke-install.sh](../scripts/smoke-install.sh) |
 | 0.2.1 | < 0.1.7 | 未测试；README 说明更早版本的会话 store API 已不适用 | **未验证**（预期不可用） | [README](../README.md) 安装要求：「更早版本的会话 store API 已不适用」 |
