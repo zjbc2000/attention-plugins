@@ -72,7 +72,7 @@ dsh plugin add attention-plugins@0.2.2
 dsh web
 ```
 
-Update with `dsh plugin update attention-plugins@0.2.2`; remove with `dsh plugin remove attention-plugins`.
+Update with `dsh plugin update attention-plugins@0.2.2`; remove with `dsh plugin remove attention-plugins`. If npm is unreachable, install the prebuilt tarball from [Releases](https://github.com/zjbc2000/attention-plugins/releases) instead: `dsh plugin add https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.2/attention-plugins-0.2.2.tgz`.
 
 From source, for development or an unreleased commit:
 
@@ -90,7 +90,7 @@ dsh web
 
 1. Install and start `dsh web`.
 2. Open **Settings → Attention** — the plugin registers its own settings tab.
-3. Mark a main line: click **☆** left of a session's composer, or use the session row's "…" menu. Mark as many as you like.
+3. Mark a main line: click **☆** left of a session's composer — it works before a new session sends its first message — or use the session row's "…" menu. Mark as many as you like.
 4. Keep the default main-line mode. If you would rather not mark anything but still hear every task, switch to **balanced**.
 5. Press **▶** on an event card once — browsers need a user gesture before they play audio.
 
@@ -192,7 +192,7 @@ After a build, a client-bundle change only needs a browser refresh; a server-sid
 
 ### Credits
 
-Architecture based on [@dingyi222666/dsh-session-notification](https://github.com/dingyi222666/dsh-session-notification) (BSD-3-Clause; the retained notice is in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)), rewritten around task priority: main-line markers, three modes, per-session mute. Listed in the DSH community plugin directory (awesome-dsh-plugin#8802).
+Architecture based on [@dingyi222666/dsh-session-notification](https://github.com/dingyi222666/dsh-session-notification) (BSD-3-Clause; the retained notice is in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)), rewritten around task priority: main-line markers, three modes, per-session mute. Listed in the DSH community plugin directory (awesome-dsh-plugin#8802). If it saves you a few interruptions, a ⭐ on GitHub is the best thanks.
 
 ### License
 
@@ -231,7 +231,7 @@ dsh plugin add attention-plugins@0.2.2
 dsh web
 ```
 
-更新：`dsh plugin update attention-plugins@0.2.2`。卸载：`dsh plugin remove attention-plugins`。
+更新：`dsh plugin update attention-plugins@0.2.2`。卸载：`dsh plugin remove attention-plugins`。访问不了 npm 时，可以改装有预构建产物的 [Release tarball](https://github.com/zjbc2000/attention-plugins/releases)：`dsh plugin add https://github.com/zjbc2000/attention-plugins/releases/download/v0.2.2/attention-plugins-0.2.2.tgz`。
 
 从源码安装，改代码或跑未发布的提交时用：
 
@@ -249,7 +249,7 @@ dsh web
 
 1. 装好，然后运行 `dsh web`。
 2. 打开 **Settings → Attention**——插件通过 `settings.section` 注册了自己的设置页签。
-3. 标一个主线：点输入框左侧的 **☆**，或用会话行「…」菜单。想标几个都行。
+3. 标一个主线：点输入框左侧的 **☆**（新会话发出第一条消息之前就能用），或用会话行「…」菜单。想标几个都行。
 4. 保持默认的主线模式即可；不想标主线、又希望每个任务各自响，就切到**均衡模式**。
 5. 点一次事件卡片上的 **▶**——浏览器要先看到用户手势，之后才会出声。
 
@@ -274,9 +274,9 @@ dsh web
 | **三档任务模式** | 主线 / 均衡 / 静音——一个设置同时管住标记过的、没标记的，以及「别烦我」。 |
 | **多主线标记** | 输入框 ☆、会话行「…」菜单、侧栏星标三个入口，可同时标多个；点某颗星只取消那一个。 |
 | **四类事件** | 完成、失败、提问、权限请求，每类独立开关、独立音效。 |
-| **三种内置音效** | Chime / Success / Subtle，Web Audio 实时合成（不带音频文件）；音量 0–100%。 |
+| **三种内置音效** | Chime / Success / Subtle，Web Audio 实时合成，不加载音频文件；音量 0–100%。 |
 | **每类事件自定义音频** | MP3 / OGG / WAV，≤ 512 KB，只存在当前浏览器，也只对这一类事件生效。 |
-| **浏览器通知** | 每类事件、每个会话各一个 tag 并带 `renotify`，提问不会顶掉未读的完成通知；提问与权限请求会请求常驻；点击直达对应会话。 |
+| **浏览器通知** | 每类事件、每个会话各一个 tag 并带 `renotify`，提问不会顶掉未读的完成通知；提问与权限请求要求常驻显示；点击直达对应会话。 |
 | **当前会话提醒三档** | 仅后台或最小化 / 切到其他应用时（分屏也算）/ 始终提醒。 |
 | **等待子代理结束** | 父会话跑完但子代理还在跑时先不响，整波结束再提醒一次。 |
 | **按会话静音** | 在会话行「…」菜单里单独静音，不动全局设置。 |
@@ -351,7 +351,7 @@ pnpm run shots -- launch   # 隔离实例 + 无头 Chrome（见 docs/SHOTS.md）
 
 ### 致谢
 
-架构基于 [@dingyi222666/dsh-session-notification](https://github.com/dingyi222666/dsh-session-notification)（上游为 BSD-3-Clause，保留的版权声明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)），围绕任务优先级重写：主线标记、三档模式、按会话静音。已收录进 DSH 社区插件目录（awesome-dsh-plugin#8802）。
+架构基于 [@dingyi222666/dsh-session-notification](https://github.com/dingyi222666/dsh-session-notification)（上游为 BSD-3-Clause，保留的版权声明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)），围绕任务优先级重写：主线标记、三档模式、按会话静音。已收录进 DSH 社区插件目录（awesome-dsh-plugin#8802）。如果它帮你少被打断几次，在 GitHub 上点个 ⭐ 就是最好的支持。
 
 ### 许可证
 
